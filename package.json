@@ -1,0 +1,40 @@
+{
+	"name": "@md5crypt/layout",
+	"version": "1.0.0",
+	"description": "single-pass flex container layout engine implementation",
+	"main": "lib/LayoutBase.js",
+	"types": "lib/LayoutBase.d.ts",
+	"files": [
+		"lib/*"
+	],
+	"directories": {
+		"lib": "lib"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/md5crypt/layout.git"
+	},
+	"scripts": {
+		"build": "tsc",
+		"start": "tsc --watch",
+		"lint": "eslint src/*.ts",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "Marek Korzeniowski",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/md5crypt/layout/issues"
+	},
+	"homepage": "https://github.com/md5crypt/layout#readme",
+	"dependencies": {},
+	"keywords": [
+		"layout"
+	],
+	"devDependencies": {
+		"typescript": "^4.1.3",
+		"@types/node": "^14.14.21",
+		"@typescript-eslint/eslint-plugin": "^4.14.1",
+		"@typescript-eslint/parser": "^4.14.1",
+		"eslint": "^7.18.0"
+	}
+}
