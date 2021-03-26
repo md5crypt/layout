@@ -19,7 +19,7 @@ interface InternalPositioningBox {
 	right: number
 }
 
-type ConfigCallback<T extends LayoutElement<any>, K = number> = (element: LayoutElement<T>) => K
+type ConfigCallback<T extends LayoutElement<any>, K = number> = (element: T) => K
 
 interface InternalLayoutConfig<T extends LayoutElement<any>> {
 	top: number | ConfigCallback<T>
@@ -33,6 +33,7 @@ interface InternalLayoutConfig<T extends LayoutElement<any>> {
 	flexVerticalAlign: "top" | "bottom" | "middle"
 	flexGrow: number
 	ignoreLayout: boolean
+	volatile: boolean
 }
 
 type PositioningBox = Readonly<(Partial<InternalPositioningBox> & {vertical?: number, horizontal?: number}) | number>
@@ -75,7 +76,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 			flexHorizontalAlign: "left",
 			flexVerticalAlign: "top",
 			flexGrow: 0,
-			ignoreLayout: false
+			ignoreLayout: false,
+			volatile: false
 		}
 		this._parent = null
 		this._top = null
@@ -141,12 +143,12 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 
 	protected get configTop() {
 		const value = this.config.top
-		return typeof value == "function" ? value(this) : value
+		return typeof value == "function" ? value(this as any) : value
 	}
 
 	protected get configLeft() {
 		const value = this.config.left
-		return typeof value == "function" ? value(this) : value
+		return typeof value == "function" ? value(this as any) : value
 	}
 
 	protected onRemoveElement(_index: number) {
@@ -257,12 +259,21 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 			this._height = null
 			this.dirty = true
 			this.layoutReady = false
-			for (const child of this.children) {
-				child.setDirty()
+			if (this.config.flexMode != "none" || this.config.volatile) {
+				for (let i = 0; i < this.children.length; i += 1) {
+					this.children[i].setDirty()
+				}
 			}
 			if (this.parentLayout != "none") {
 				this._parent!.setDirty()
 			}
+		}
+	}
+
+	public forEach(callback: (element: T) => void) {
+		callback(this as any)
+		for (let i = 0; i < this.children.length; i += 1) {
+			this.children[i].forEach(callback)
 		}
 	}
 
@@ -315,7 +326,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	public get width(): number {
 		if (this._width === null) {
 			if (typeof this.config.width == "function") {
-				this._width = this.config.width(this)
+				this._width = this.config.width(this as any)
 			} else if (this.config.width) {
 				this._width = this.config.width
 			} else if (this.config.width === 0) {
@@ -349,7 +360,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	public get height(): number {
 		if (this._height === null) {
 			if (typeof this.config.height == "function") {
-				this._height = this.config.height(this)
+				this._height = this.config.height(this as any)
 			} else if (this.config.height) {
 				this._height = this.config.height
 			} else if (this.config.height === 0) {
@@ -386,6 +397,18 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 
 	public get heightReady() {
 		return (this._height !== null) || (this.config.height !== undefined)
+	}
+
+	public get globalPosition() {
+		let top = this._top || 0
+		let left = this._left || 0
+		let current = this._parent
+		while (current) {
+			top += current._top || 0
+			left += current._left || 0
+			current = current._parent
+		}
+		return { top, left }
 	}
 
 	public updateConfig(config: LayoutConfig<T>) {
@@ -425,30 +448,53 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		this.setDirty()
 	}
 
-	public getElement<K extends T>(name: string): K {
+	public getElement<K extends T>(name: string): K
+	public getElement<K extends T>(name: string, noThrow: false): K
+	public getElement<K extends T>(name: string, noThrow: true): K | null
+	public getElement<K extends T>(name: string, noThrow = false): K | null {
 		if (!this.name) {
-			return this.parent.getElement<K>(name)
+			return this.parent.getElement<K>(name, noThrow as false)
 		}
 		const path = name.split(".")
 		let child: LayoutElement<any> | undefined = this
 		for (let i = 0; i < path.length; i++) {
 			child = child.childrenMap.get(path[i])
 			if (!child) {
+				if (noThrow) {
+					return null
+				}
 				throw new Error(`could not resolve '${name}'`)
 			}
 		}
 		return child as K
 	}
 
+	public hasElement(name: string) {
+		return this.getElement(name, true) != null
+	}
+
+	public replaceElement(element: T, old: T | string) {
+		const index = this.children.indexOf(typeof old == "string" ? this.getElement(old) : old)
+		if (index < 0) {
+			throw new Error("replacement target not found")
+		}
+		this.children[index].delete()
+		if (index == this.children.length) {
+			this.insertElement(element)
+		} else {
+			this.insertElement(element, this.children[index])
+		}
+	}
+
 	public insertElement(element: T, before?: T | string) {
 		if (before) {
 			const searchResult = this.children.indexOf(typeof before == "string" ? this.getElement(before) : before)
 			const index = searchResult >= 0 ? searchResult : this.children.length
-			this.children.splice(index, 0, element)
 			this.onInsertElement(element, index)
+			this.children.splice(index, 0, element)
 		} else {
-			this.children.push(element)
 			this.onInsertElement(element, this.children.length - 1)
+			this.children.push(element)
 		}
 		if (element.name && (element.name[0] != "@")) {
 			this.nameAdd(element)
