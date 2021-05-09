@@ -51,6 +51,7 @@ interface LayoutConfigOverride<T extends LayoutElement<any>> {
 export type LayoutConfig<T extends LayoutElement<any>> =  Readonly<Partial<Omit<InternalLayoutConfig<T>, keyof LayoutConfigOverride<T>> & LayoutConfigOverride<T>>>
 
 export abstract class LayoutElement<T extends LayoutElement<any>> {
+	public readonly type: string
 	public readonly name?: string
 	public readonly children: T[]
 
@@ -66,7 +67,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	private _top: number | null
 	private _left: number | null
 
-	public constructor(name?: string) {
+	public constructor(type: string, name?: string) {
+		this.type = type
 		this.config = {
 			top: 0,
 			left: 0,
@@ -141,16 +143,6 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		return this.children.reduce((value, element) => Math.max(value, (element.config.ignoreLayout || !element._enabled ? 0 : element.outerWidth)), 0)
 	}
 
-	protected get configTop() {
-		const value = this.config.top
-		return typeof value == "function" ? value(this as any) : value
-	}
-
-	protected get configLeft() {
-		const value = this.config.left
-		return typeof value == "function" ? value(this as any) : value
-	}
-
 	protected onRemoveElement(_index: number) {
 		// no-op by default
 	}
@@ -188,8 +180,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 					element._width = element.width + amount
 					element._height = null
 				}
-				element._top = this.config.padding.top + element.configTop
-				element._left = xOffset + element.configLeft
+				element._top = this.config.padding.top + element.top
+				element._left = xOffset + element.left
 				element.dirty = true
 				xOffset += element.outerWidth
 			}
@@ -220,8 +212,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 					element._height = element.height + amount
 					element._width = null
 				}
-				element._left = element.configLeft + this.config.padding.left
-				element._top = yOffset + element.configTop
+				element._left = element.left + this.config.padding.left
+				element._top = yOffset + element.top
 				element.dirty = true
 				yOffset += element.outerHeight
 			}
@@ -234,6 +226,10 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 				}
 			}
 		}
+	}
+
+	public get hasParent() {
+		return this._parent != null
 	}
 
 	public get parent() {
@@ -306,7 +302,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	}
 
 	public get top() {
-		return (this._top !== null ? this._top : this.configTop) + this.config.margin.top
+		const value = this.config.top
+		return typeof value == "function" ? value(this as any) : value
 	}
 
 	public set top(value: number) {
@@ -315,12 +312,21 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	}
 
 	public get left() {
-		return (this._left !== null ? this._left : this.configLeft) + this.config.margin.left
+		const value = this.config.left
+		return typeof value == "function" ? value(this as any) : value
 	}
 
 	public set left(value: number) {
 		this.config.left = value
 		this.setDirty()
+	}
+
+	public get innerTop() {
+		return (this._top !== null ? this._top : this.top) + this.config.margin.top
+	}
+
+	public get innerLeft() {
+		return (this._left !== null ? this._left : this.left) + this.config.margin.left
 	}
 
 	public get width(): number {
@@ -399,18 +405,6 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		return (this._height !== null) || (this.config.height !== undefined)
 	}
 
-	public get globalPosition() {
-		let top = this._top || 0
-		let left = this._left || 0
-		let current = this._parent
-		while (current) {
-			top += current._top || 0
-			left += current._left || 0
-			current = current._parent
-		}
-		return { top, left }
-	}
-
 	public updateConfig(config: LayoutConfig<T>) {
 		Object.assign(this.config, config)
 		for (const key of ["padding", "margin"] as const) {
@@ -446,6 +440,33 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 			this._enabled = config.enabled
 		}
 		this.setDirty()
+	}
+
+	public getPath(root?: LayoutElement<T>) {
+		if (this.name) {
+			const result = [this.name]
+			let parent = this._parent
+			while (parent && parent != root) {
+				if (parent.name) {
+					result.push(parent.name)
+				}
+				parent = parent._parent
+			}
+			return result.reverse().join(".")
+		} else {
+			return undefined
+		}
+	}
+
+	public isParentOf(child: LayoutElement<T>) {
+		let parent = child._parent
+		while (parent) {
+			if (parent == (this as any)) {
+				return true
+			}
+			parent = parent._parent
+		}
+		return false
 	}
 
 	public getElement<K extends T>(name: string): K
