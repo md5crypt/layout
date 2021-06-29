@@ -7,6 +7,7 @@ type CollectElementTypes<T extends ElementTypeNode> = {
 		name?: string
 		config?: T[K]["config"]
 		layout?: LayoutConfig<T[K]["element"]>
+		metadata?: Record<string, any>
 	}
 }
 
@@ -54,6 +55,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	public readonly type: string
 	public readonly name?: string
 	public readonly children: T[]
+	public readonly metadata: Record<string, any>
 
 	protected readonly config: InternalLayoutConfig<T>
 	protected _parent: T | null
@@ -92,6 +94,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		this.name = name
 		this.children = []
 		this.childrenMap = new Map()
+		this.metadata = {}
 	}
 
 	private nameAdd(element: T) {
@@ -110,15 +113,23 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		}
 	}
 
+	private nameRemoveRecursion(element: T) {
+		if (element.name) {
+			if (element.name[0] != "@") {
+				this.nameRemove(element)
+			}
+		} else {
+			element.children.forEach(element => this.nameRemoveRecursion(element))
+		}
+	}
+
 	private removeElement(element: T): boolean
 	private removeElement(index: number): boolean
 	private removeElement(arg: T | number) {
 		const element = typeof arg == "number" ? this.children[arg] : arg
 		const index = typeof arg == "number" ? arg :this.children.indexOf(element)
 		if (index >= 0) {
-			if (element.name && (element.name[0] != "@")) {
-				this.nameRemove(element)
-			}
+			this.nameRemoveRecursion(element)
 			this.onRemoveElement(index)
 			this.children.splice(index, 1)
 			this.setDirty()
@@ -286,6 +297,20 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		}
 	}
 
+	public get treeEnabled() {
+		if (!this._enabled) {
+			return false
+		}
+		let parent = this._parent
+		while (parent) {
+			if (!parent._enabled) {
+				return false
+			}
+			parent = parent._parent
+		}
+		return true
+	}
+
 	public get enabled() {
 		return this._enabled
 	}
@@ -398,11 +423,11 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	}
 
 	public get widthReady() {
-		return (this._width !== null) || (this.config.width !== undefined)
+		return (this._width !== null) || (typeof this.config.width == "number")
 	}
 
 	public get heightReady() {
-		return (this._height !== null) || (this.config.height !== undefined)
+		return (this._height !== null) || (typeof this.config.height == "number")
 	}
 
 	public updateConfig(config: LayoutConfig<T>) {
@@ -558,6 +583,9 @@ export class LayoutFactory<T extends LayoutElement<any>, K extends LayoutElement
 		const root = this.createElement(json.type, json.name, json.config)
 		if (json.layout) {
 			root.updateConfig(json.layout)
+		}
+		if (json.metadata) {
+			Object.assign(root.metadata, json.metadata)
 		}
 		parent?.insertElement(root)
 		if (json.children) {
