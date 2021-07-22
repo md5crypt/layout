@@ -1,5 +1,4 @@
-export type Typify<T> = { [ K in keyof T ]: T[ K ] }
-export type ElementTypeNode = Record<string, {config: any, element: LayoutElement<any>}>
+export type ElementTypeNode = Record<string, {config: any, element: LayoutElement<any, LayoutElementJson>}>
 
 type CollectElementTypes<T extends ElementTypeNode> = {
 	[K in keyof T]: {
@@ -11,7 +10,7 @@ type CollectElementTypes<T extends ElementTypeNode> = {
 	}
 }
 
-export type LayoutElementJson<T extends ElementTypeNode> = CollectElementTypes<T>[keyof CollectElementTypes<T>] & {children?: LayoutElementJson<T>[]}
+export type LayoutElementJson<T extends ElementTypeNode = any> = CollectElementTypes<T>[keyof CollectElementTypes<T>] & {children?: LayoutElementJson<T>[]}
 
 interface InternalPositioningBox {
 	top: number
@@ -20,9 +19,9 @@ interface InternalPositioningBox {
 	right: number
 }
 
-type ConfigCallback<T extends LayoutElement<any>, K = number> = (element: T) => K
+type ConfigCallback<T extends LayoutElement<T, LayoutElementJson>, K = number> = (element: T) => K
 
-interface InternalLayoutConfig<T extends LayoutElement<any>> {
+interface InternalLayoutConfig<T extends LayoutElement<T, LayoutElementJson>> {
 	top: number | ConfigCallback<T>
 	left: number | ConfigCallback<T>
 	width?: number | ConfigCallback<T, number | null>
@@ -37,9 +36,9 @@ interface InternalLayoutConfig<T extends LayoutElement<any>> {
 	volatile: boolean
 }
 
-type PositioningBox = Readonly<(Partial<InternalPositioningBox> & {vertical?: number, horizontal?: number}) | number>
+export type PositioningBox = Readonly<(Partial<InternalPositioningBox> & {vertical?: number, horizontal?: number}) | number>
 
-interface LayoutConfigOverride<T extends LayoutElement<any>> {
+interface LayoutConfigOverride<T extends LayoutElement<T, LayoutElementJson>> {
 	padding: PositioningBox
 	margin: PositioningBox
 	top: number | ConfigCallback<T> | string
@@ -49,12 +48,13 @@ interface LayoutConfigOverride<T extends LayoutElement<any>> {
 	enabled: boolean
 }
 
-export type LayoutConfig<T extends LayoutElement<any>> =  Readonly<Partial<Omit<InternalLayoutConfig<T>, keyof LayoutConfigOverride<T>> & LayoutConfigOverride<T>>>
+export type LayoutConfig<T extends LayoutElement<T, LayoutElementJson>> = Readonly<Partial<Omit<InternalLayoutConfig<T>, keyof LayoutConfigOverride<T>> & LayoutConfigOverride<T>>>
 
-export abstract class LayoutElement<T extends LayoutElement<any>> {
+export abstract class LayoutElement<T extends LayoutElement<T, K>, K extends LayoutElementJson> {
 	public readonly type: string
 	public readonly name?: string
 	public readonly children: T[]
+	public readonly factory: LayoutFactory<T, K>
 	public readonly metadata: Record<string, any>
 
 	protected readonly config: InternalLayoutConfig<T>
@@ -69,7 +69,8 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	private _top: number | null
 	private _left: number | null
 
-	public constructor(type: string, name?: string) {
+	public constructor(factory: LayoutFactory<T, K>, type: string, name?: string) {
+		this.factory = factory
 		this.type = type
 		this.config = {
 			top: 0,
@@ -100,16 +101,16 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	private nameAdd(element: T) {
 		if (this.name) {
 			this.childrenMap.set(element.name!, element)
-		} else {
-			this.parent.nameAdd(element)
+		} else if (this._parent) {
+			this._parent.nameAdd(element)
 		}
 	}
 
 	private nameRemove(element: T) {
 		if (this.name) {
 			this.childrenMap.delete(element.name!)
-		} else {
-			this.parent.nameRemove(element)
+		} else if (this._parent) {
+			this._parent.nameRemove(element)
 		}
 	}
 
@@ -455,9 +456,9 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 				}
 				const scale = parseInt(match[1], 10) / 100
 				if (key == "width") {
-					this.config.width = element => element.parent.widthReady ? (element.parent.innerWidth * scale) : null
+					this.config.width = element => element._parent?.widthReady ? (element._parent.innerWidth * scale) : null
 				} else {
-					this.config.height = element => element.parent.heightReady ? (element.parent.innerHeight * scale) : null
+					this.config.height = element => element._parent?.heightReady ? (element._parent.innerHeight * scale) : null
 				}
 			}
 		}
@@ -467,7 +468,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		this.setDirty()
 	}
 
-	public getPath(root?: LayoutElement<T>) {
+	public getPath(root?: LayoutElement<T, K>) {
 		if (this.name) {
 			const result = [this.name]
 			let parent = this._parent
@@ -483,7 +484,7 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		}
 	}
 
-	public isParentOf(child: LayoutElement<T>) {
+	public isParentOf(child: LayoutElement<T, K>) {
 		let parent = child._parent
 		while (parent) {
 			if (parent == (this as any)) {
@@ -494,45 +495,51 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		return false
 	}
 
-	public getElement<K extends T>(name: string): K
-	public getElement<K extends T>(name: string, noThrow: false): K
-	public getElement<K extends T>(name: string, noThrow: true): K | null
-	public getElement<K extends T>(name: string, noThrow = false): K | null {
+	public getElement<L extends T>(name: string): L
+	public getElement<L extends T>(name: string, noThrow: false): L
+	public getElement<L extends T>(name: string, noThrow: true): L | null
+	public getElement<L extends T>(name: string, noThrow = false): L | null {
 		if (!this.name) {
-			return this.parent.getElement<K>(name, noThrow as false)
+			return this.parent.getElement<L>(name, noThrow as false)
 		}
 		const path = name.split(".")
-		let child: LayoutElement<any> | undefined = this
+		let current: LayoutElement<T, K> = this
 		for (let i = 0; i < path.length; i++) {
-			child = child.childrenMap.get(path[i])
+			const child = current.childrenMap.get(path[i])
 			if (!child) {
 				if (noThrow) {
 					return null
 				}
 				throw new Error(`could not resolve '${name}'`)
 			}
+			current = child
 		}
-		return child as K
+		return current as L
 	}
 
 	public hasElement(name: string) {
 		return this.getElement(name, true) != null
 	}
 
-	public replaceElement(element: T, old: T | string) {
+	public replaceElement(element: T | K, old: T | string) {
 		const index = this.children.indexOf(typeof old == "string" ? this.getElement(old) : old)
 		if (index < 0) {
 			throw new Error("replacement target not found")
 		}
 		this.children[index].delete()
 		if (index == this.children.length) {
-			this.insertElement(element)
+			return this.insertElement(element)
 		} else {
-			this.insertElement(element, this.children[index])
+			return this.insertElement(element, this.children[index])
 		}
 	}
 
-	public insertElement(element: T, before?: T | string) {
+	public insertElement(element: T | K, before?: T | string) {
+		if (!(element instanceof LayoutElement)) {
+			return this.factory.create(element, this as any)
+		}
+		element._parent?.removeElement(element)
+		element._parent = this as any
 		if (before) {
 			const searchResult = this.children.indexOf(typeof before == "string" ? this.getElement(before) : before)
 			const index = searchResult >= 0 ? searchResult : this.children.length
@@ -545,13 +552,12 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 		if (element.name && (element.name[0] != "@")) {
 			this.nameAdd(element)
 		}
-		element._parent?.removeElement(element)
-		element._parent = this
 		this.setDirty()
+		return element
 	}
 
 	public delete() {
-		this._parent?.removeElement(this)
+		this._parent?.removeElement(this as any)
 		this._parent = null
 	}
 
@@ -562,12 +568,12 @@ export abstract class LayoutElement<T extends LayoutElement<any>> {
 	}
 }
 
-type LayoutConstructor = (name?: string, config?: Record<string, any>) => LayoutElement<any>
+type LayoutConstructor<T extends LayoutFactory> = (factory: T, name?: string, config?: Record<string, any>) => LayoutElement<any, LayoutElementJson>
 
-export class LayoutFactory<T extends LayoutElement<any>, K extends LayoutElementJson<any> = LayoutElementJson<any>> {
-	private constructors: Map<string, LayoutConstructor> = new Map()
+export class LayoutFactory<T extends LayoutElement<T, K> = any, K extends LayoutElementJson = any> {
+	private constructors: Map<string, LayoutConstructor<this>> = new Map()
 
-	public register(type: string, constructor: LayoutConstructor) {
+	public register(type: string, constructor: LayoutConstructor<this>) {
 		this.constructors.set(type, constructor)
 	}
 
@@ -576,10 +582,10 @@ export class LayoutFactory<T extends LayoutElement<any>, K extends LayoutElement
 		if (!constructor) {
 			throw new Error(`unknown layout type '${type}'`)
 		}
-		return constructor(name, config) as T
+		return constructor(this, name, config) as T
 	}
 
-	public create(json: K, parent?: T): T {
+	public create(json: K, parent?: T, before?: T | string): T {
 		const root = this.createElement(json.type, json.name, json.config)
 		if (json.layout) {
 			root.updateConfig(json.layout)
@@ -587,7 +593,7 @@ export class LayoutFactory<T extends LayoutElement<any>, K extends LayoutElement
 		if (json.metadata) {
 			Object.assign(root.metadata, json.metadata)
 		}
-		parent?.insertElement(root)
+		parent?.insertElement(root, before)
 		if (json.children) {
 			json.children.forEach(element => this.create(element as K, root))
 		}

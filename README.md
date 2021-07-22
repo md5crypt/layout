@@ -50,7 +50,7 @@ Setting a dimension controlled by the current layout (so `width` for horizontal 
 
 ### PositioningBox
 
-An object used for providing padding and margin values.
+An object or number used for providing padding and margin values.
 
 | filed | type | default | description |
 |:---|:---:|:---:|:---|
@@ -58,17 +58,21 @@ An object used for providing padding and margin values.
 | vertical | `number` | 0 | sets top and bottom at the same time |
 | horizontal | `number` | 0 | sets left and right at the same time |
 
+If an number is given instead of an object then all dimensions are set that the given value.
+
 ## Instancing elements
 
 A LayoutFactory instance is used to create element instances.
 
 ```typescript
 interface LayoutFactory {
-	create(layout: LayoutElementJson, parent?: LayoutElement) => LayoutElement
+    create(layout: LayoutElementJson, parent?: LayoutElement) => LayoutElement
 }
 ```
 
-If `parent` is provided the created element will be inserted as it;s last child.
+If `parent` is provided the created element will be inserted as it's last child.
+
+Alternatively elements can be created by passing `LayoutElementJson` to the `insertElement` / `replaceElement` functions of a LayoutElement instance.
 
 ## LayoutElement
 
@@ -82,6 +86,7 @@ The base class for all instantiated layout elements.
 | name | `string` `undefined` | **(readonly)** the element name |
 | children | `LayoutElement[]` | **(readonly)** element children array |
 | metadata | `Object`| **(readonly)** user defined metadata |
+| factory | `LayoutFactory`| **(readonly)** the factory instance that was used to create this element |
 | hasParent| `boolean` | **(readonly)** true if the element has a parent |
 | parent | `LayoutElement` | **(readonly)** element's parent, throws an exception if the parent does not exist |
 | contentWidth | `number` | **(readonly)** element's content width. This is **not** equal to the computed element size, this value is used to get the element's natural size (like image dimensions for an image) |
@@ -104,19 +109,19 @@ The base class for all instantiated layout elements.
 
 ### Function reference
 
-| name | arguments | return type | description |
-|:---|:---:|:---:|:---|
-| forEach | `callback: (e: LayoutElement) => void` | `void` | call the provided callback for this element and all of it's children |
-| update | - | `void` | update the element and all of it's children. **This function should be called on the layout's root element on each iteration of the application render loop.** |
-| updateConfig | `config: LayoutConfig` | `void` | update the element's layout configuration. The provided object is merged with the current layout configuration. |
-| getPath | `root?: LayoutElement` | `string` `undefined` | get path of the current element relative to the provided element (or current root if non provided). Undefined is returned if the object does not have a name. |
-| isParentOf | `child: LayoutElement` | `boolean` | returns true if current element exists in the parent chain of the given child. |
-| getElement | `name: string` <br> `noThrow = false` | `LayoutElement` `null` | resolves an element by name. See section below for details about name resolution. By default (noThrow = false) throws an exception when the element is not found. When noThrow is true returns null instead.
-| hasElement | `name: string` | `boolean` | checks if the given name resolves to an element. See section below for detail about name resolution.
-| replaceElement | `new: LayoutElement` <br> `old: LayoutElement \| string` | `void` | replace a direct child of the current element with a different element. |
-| insertElement | `e: LayoutElement`, `before?: LayoutElement \| string` | `void` | insert a child to the current element, by default at the end. The insertion point can be changed by providing an element before which the new element should be inserted. |
-| delete | - | `void` | remove the current element from it's parent |
-| deleteChildren | `offset = 0` | `void` | remove all children of the current element. If offset is provided deletion will start at the given offset and children before it will be preserved. |
+| name | signature | description |
+|:---|:---:|:---|
+| forEach | `(callback: (e: LayoutElement) => void) => void` | call the provided callback for this element and all of it's children |
+| update | `() => void` | update the element and all of it's children. **This function should be called on the layout's root element on each iteration of the application render loop.** |
+| updateConfig | `(config: LayoutConfig) => void` | update the element's layout configuration. The provided object is merged with the current layout configuration. |
+| getPath | `(root?: LayoutElement) => string \| undefined` | get path of the current element relative to the provided element (or current root if non provided). Undefined is returned if the object does not have a name. |
+| isParentOf | `(child: LayoutElement) => boolean` | returns true if current element exists in the parent chain of the given child. |
+| getElement | `(name: string, noThrow = false) => LayoutElement \| null` | resolves an element by name. See section below for details about name resolution. By default (noThrow = false) throws an exception when the element is not found. When noThrow is true returns null instead.
+| hasElement | `(name: string) => boolean` | checks if the given name resolves to an element. See section below for detail about name resolution.
+| insertElement | `(e: LayoutElement \| LayoutElementJson, before?: LayoutElement \| string) => LayoutElement` | insert a child to the current element, by default at the end. The insertion point can be changed by providing an element before which the new element should be inserted. Creates the element if LayoutElementJson is given instead of an element instance. |
+| replaceElement | `(new: LayoutElement \| LayoutElementJson, old: LayoutElement \| string => LayoutElement` | replace a direct child of the current element with a different element. Creates the element if LayoutElementJson is given instead of an element instance. |
+| delete | `() => void` | remove the current element from it's parent |
+| deleteChildren | `(offset = 0) => void` | remove all children of the current element. If offset is provided deletion will start at the given offset and children before it will be preserved. |
 
 ### Resolving elements by name
 

@@ -1,9 +1,10 @@
 {
 	"name": "@md5crypt/layout",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "single-pass flex container layout engine implementation",
 	"main": "lib/LayoutBase.js",
 	"types": "lib/LayoutBase.d.ts",
+	"type": "module",
 	"files": [
 		"lib/*"
 	],
@@ -26,7 +27,6 @@
 		"url": "https://github.com/md5crypt/layout/issues"
 	},
 	"homepage": "https://github.com/md5crypt/layout#readme",
-	"dependencies": {},
 	"keywords": [
 		"layout"
 	],
