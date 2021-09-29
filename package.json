@@ -1,6 +1,6 @@
 {
 	"name": "@md5crypt/layout",
-	"version": "1.0.3",
+	"version": "1.1.0",
 	"description": "single-pass flex container layout engine implementation",
 	"main": "lib/LayoutBase.js",
 	"types": "lib/LayoutBase.d.ts",
@@ -19,6 +19,7 @@
 		"build": "tsc",
 		"start": "tsc --watch",
 		"lint": "eslint src/*.ts",
+		"link": "mkdir link; mkdir -p lib; cd link; ln -s ../lib .; ln -s ../package.json .",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"author": "Marek Korzeniowski",

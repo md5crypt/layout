@@ -1,5 +1,7 @@
 # Unnamed layout engine
 
+README OUTDATED!
+
 This package aims at providing a base for a layout engine regardless of what graphic framework will be used. It implements the following:
 
 - a json based layout description system for creating entire structures from static json templates
