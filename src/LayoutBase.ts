@@ -811,26 +811,50 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	public insertElement(element: T | K, before?: T | string): T {
+	public insertElement(element: T | K, before?: T | string | number): T {
 		if (!(element instanceof LayoutElement)) {
-			return this.factory.create(element, this)
+			return this.factory.create(element, this, before)
 		}
 		element._parent?.removeElement(element)
 		element._parent = this as any
-		if (before) {
-			const searchResult = this.children.indexOf(typeof before == "string" ? this.getElement(before) : before)
-			const index = searchResult >= 0 ? searchResult : this.children.length
-			this.onInsertElement(element, index)
-			this.children.splice(index, 0, element)
-		} else {
-			this.onInsertElement(element, this.children.length - 1)
+		let index = this.children.length
+		if (before !== undefined) {
+			if (typeof before == "number") {
+				index = Math.min(before, this.children.length)
+			} else if (typeof before == "string") {
+				index = this.children.indexOf(this.getElement(before))
+			} else {
+				index = this.children.indexOf(before)
+			}
+			if (index < 0) {
+				index = Math.max(0, (this.children.length + 1) - index)
+			}
+		}
+		this.onInsertElement(element, index)
+		if (index == this.children.length) {
 			this.children.push(element)
+		} else {
+			this.children.splice(index, 0, element)
 		}
 		if (element.name && (element.name[0] != "@")) {
 			this.nameAdd(element)
 		}
 		this.setDirty()
 		return element
+	}
+
+	public insertElements(elements: (T | K)[], before?: T | string) {
+		if (elements.length == 0) {
+			return
+		}
+		if (before == undefined) {
+			elements.forEach(x => this.insertElement(x))
+		} else {
+			const index = this.insertElement(elements[0], before).parentIndex
+			for (let i = 1; i < elements.length; i += 1) {
+				this.insertElement(elements[i], index + i)
+			}
+		}
 	}
 
 	public delete() {
@@ -851,8 +875,20 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 
 type LayoutConstructor = (props: LayoutElementConstructorProperties<any>) => LayoutElement
 
+export interface ElementClassInterface {
+	register(layoutFactory: LayoutFactory): void
+}
+
 export class LayoutFactory<T extends LayoutElement = any, K extends LayoutElementJson = any> {
 	private constructors: Map<string, LayoutConstructor> = new Map()
+
+	public addElementClass(element: ElementClassInterface ) {
+		element.register(this)
+	}
+
+	public addElementClasses(elements: ElementClassInterface[]) {
+		elements.forEach(x => x.register(this))
+	}
 
 	public register(type: string, constructor: LayoutConstructor) {
 		this.constructors.set(type, constructor)
@@ -866,13 +902,15 @@ export class LayoutFactory<T extends LayoutElement = any, K extends LayoutElemen
 		return constructor({type, config, factory: this}) as T
 	}
 
-	public create(json: K, parent?: LayoutElement, before?: LayoutElement | string): T {
+	public create(json: K, parent?: LayoutElement, before?: LayoutElement | string | number): T {
 		const root = this.createElement(json.type, json.config)
-		parent?.insertElement(root, before)
+		if (parent) {
+			parent.insertElement(root, before)
+		}
 		if (json.children) {
 			json.children.forEach(element => this.create(element as K, root))
 		}
-		if (root.onAttachCallback) {
+		if (parent && root.onAttachCallback) {
 			root.onAttachCallback(root)
 		}
 		return root
