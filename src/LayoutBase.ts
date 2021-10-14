@@ -89,7 +89,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	protected _volatile: boolean
 
 	private readonly childrenMap: Map<string, LayoutElement<any, K>>
-	private layoutReady: boolean
+	private _layoutReady: boolean
 
 	public static resolvePositioningBox(value: PositioningBox): ResolvedPositioningBox {
 		if (typeof value == "number") {
@@ -126,7 +126,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.cachedHeight = null
 		this._enabled = true
 		this.dirty = true
-		this.layoutReady = false
+		this._layoutReady = false
 		this.children = []
 		this.childrenMap = new Map()
 		this.metadata = {}
@@ -264,8 +264,8 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	protected resolveLayout() {
-		if (this.layoutReady || this._flexMode == "none") {
-			this.layoutReady = true
+		if (this._layoutReady || this._flexMode == "none") {
+			this._layoutReady = true
 			return // nothing to do
 		}
 		let growCount = this.children.reduce((value, element) => value + (element._enabled ? element._flexGrow : 0), 0)
@@ -293,7 +293,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				element.dirty = true
 				xOffset += element.outerWidth
 			}
-			this.layoutReady = true
+			this._layoutReady = true
 			const height = this.innerHeight
 			for (const element of this.children) {
 				if (this._enabled && !element._ignoreLayout && (this._flexVerticalAlign != "top")) {
@@ -325,7 +325,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				element.dirty = true
 				yOffset += element.outerHeight
 			}
-			this.layoutReady = true
+			this._layoutReady = true
 			const width = this.innerWidth
 			for (const element of this.children) {
 				if (this._enabled && !element._ignoreLayout && (this._flexHorizontalAlign != "left")) {
@@ -362,7 +362,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			this.cachedWidth = null
 			this.cachedHeight = null
 			this.dirty = true
-			this.layoutReady = false
+			this._layoutReady = false
 			if (this._flexMode != "none" || this._volatile) {
 				for (let i = 0; i < this.children.length; i += 1) {
 					this.children[i].setDirty()
@@ -708,6 +708,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this.height - this._padding.top - this._padding.bottom
 	}
 
+	public get layoutReady() {
+		return this._layoutReady
+	}
+
 	public get widthReady() {
 		return (this.cachedWidth !== null) || (this._width !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "horizontal"))
 	}
@@ -754,7 +758,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		let element = this as LayoutElement
 		while (true) {
 			const parent = element._parent
-			if (!parent) {
+			if (!parent || parent.type == "root") {
 				return element as T
 			}
 			element = parent
@@ -910,7 +914,7 @@ export class LayoutFactory<T extends LayoutElement = any, K extends LayoutElemen
 		if (json.children) {
 			json.children.forEach(element => this.create(element as K, root))
 		}
-		if (parent && root.onAttachCallback) {
+		if (root.onAttachCallback) {
 			root.onAttachCallback(root)
 		}
 		return root
