@@ -355,8 +355,8 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return 0
 	}
 
-	public setDirty() {
-		if (!this.dirty) {
+	public setDirty(force?: boolean) {
+		if (!this.dirty || force) {
 			this.cachedTop = null
 			this.cachedLeft = null
 			this.cachedWidth = null
@@ -365,11 +365,11 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			this._layoutReady = false
 			if (this._flexMode != "none" || this._volatile) {
 				for (let i = 0; i < this.children.length; i += 1) {
-					this.children[i].setDirty()
+					this.children[i].setDirty(force)
 				}
 			}
 			if (this.parentLayout != "none") {
-				this._parent!.setDirty()
+				this._parent!.setDirty(force)
 			}
 			return true
 		}
@@ -558,14 +558,14 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		if (this._top != value) {
 			this._top = value
 		}
-		this.setDirty()
+		this.setDirty(this.cachedTop !== null)
 	}
 
 	public setTop(value: number | ((element: T) => number)) {
 		if (this._top != value) {
 			this._top = value
 		}
-		this.setDirty()
+		this.setDirty(this.cachedTop !== null)
 	}
 
 	public get left(): number {
@@ -577,14 +577,14 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		if (value != this._left) {
 			this._left = value
 		}
-		this.setDirty()
+		this.setDirty(this.cachedLeft !== null)
 	}
 
 	public setLeft(value: number | ((element: T) => number)) {
 		if (value != this._left) {
 			this._left = value
 		}
-		this.setDirty()
+		this.setDirty(this.cachedLeft !== null)
 	}
 
 	public get innerTop() {
@@ -606,7 +606,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			} else {
 				this._width = value
 			}
-			this.setDirty()
+			this.setDirty(this.cachedWidth !== null)
 		}
 	}
 
@@ -614,7 +614,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	public set width(value: number) {
 		if (this._width !== value) {
 			this._width = value
-			this.setDirty()
+			this.setDirty(this.cachedWidth !== null)
 		}
 	}
 
@@ -663,14 +663,14 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			} else {
 				this._height = value
 			}
-			this.setDirty()
+			this.setDirty(this.cachedHeight !== null)
 		}
 	}
 
 	public set height(value: number) {
 		if (this._height !== value) {
 			this._height = value
-			this.setDirty()
+			this.setDirty(this.cachedHeight !== null)
 		}
 	}
 
@@ -718,6 +718,14 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 
 	public get heightReady() {
 		return (this.cachedHeight !== null) || (this._height !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "vertical"))
+	}
+
+	public get hasWidth() {
+		return this._width !== null
+	}
+
+	public get hasHeight() {
+		return this._height !== null
 	}
 
 	public get isLayoutElement() {
