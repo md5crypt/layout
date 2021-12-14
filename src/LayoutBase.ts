@@ -369,7 +369,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				}
 			}
 			if (this.parentLayout != "none") {
-				this._parent!.setDirty(force)
+				this._parent!.setDirty()
 			}
 			return true
 		}
