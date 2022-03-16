@@ -68,10 +68,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 
 	protected _parent: T | null
 
-	private cachedWidth: number | null
-	private cachedHeight: number | null
-	private cachedTop: number | null
-	private cachedLeft: number | null
+	private _cachedWidth: number | null
+	private _cachedHeight: number | null
+	private _cachedTop: number | null
+	private _cachedLeft: number | null
 	private dirty: boolean
 
 	protected _enabled: boolean
@@ -120,10 +120,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this._ignoreLayout = false
 		this._volatile = false
 		this._parent = null
-		this.cachedTop = null
-		this.cachedLeft = null
-		this.cachedWidth = null
-		this.cachedHeight = null
+		this._cachedTop = null
+		this._cachedLeft = null
+		this._cachedWidth = null
+		this._cachedHeight = null
 		this._enabled = true
 		this.dirty = true
 		this._layoutReady = false
@@ -235,20 +235,44 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return false
 	}
 
-	private get childrenHeight(): number {
-		return this.children.reduce((value, element) => value + (element._ignoreLayout || !element._enabled ? 0 : element.outerHeight), 0)
+	private get childrenHeight() {
+		const children = this.children
+		let value = 0
+		for (let i = 0; i < children.length; i += 1) {
+			const element = children[i]
+			value += (element._ignoreLayout || !element._enabled) ? 0 : element.outerHeight
+		}
+		return value
 	}
 
-	private get childrenMaxHeight(): number {
-		return this.children.reduce((value, element) => Math.max(value, (element._ignoreLayout || !element._enabled ? 0 : element.outerHeight)), 0)
+	private get childrenMaxHeight() {
+		const children = this.children
+		let value = 0
+		for (let i = 0; i < children.length; i += 1) {
+			const element = children[i]
+			value = Math.max(value, (element._ignoreLayout || !element._enabled) ? 0 : element.outerHeight)
+		}
+		return value
 	}
 
-	private get childrenWidth(): number {
-		return this.children.reduce((value, element) => value + (element._ignoreLayout || !element._enabled ? 0 : element.outerWidth), 0)
+	private get childrenWidth() {
+		const children = this.children
+		let value = 0
+		for (let i = 0; i < children.length; i += 1) {
+			const element = children[i]
+			value += (element._ignoreLayout || !element._enabled) ? 0 : element.outerWidth
+		}
+		return value
 	}
 
 	private get childrenMaxWidth(): number {
-		return this.children.reduce((value, element) => Math.max(value, (element._ignoreLayout || !element._enabled ? 0 : element.outerWidth)), 0)
+		const children = this.children
+		let value = 0
+		for (let i = 0; i < children.length; i += 1) {
+			const element = children[i]
+			value = Math.max(value, (element._ignoreLayout || !element._enabled) ? 0 : element.outerWidth)
+		}
+		return value
 	}
 
 	protected onRemoveElement(_index: number) {
@@ -272,7 +296,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		if (this._flexMode == "horizontal") {
 			const width = this.innerWidth
 			let growPool = width - this.childrenWidth
-			let xOffset = this._padding.left
+			let xOffset = 0
 			if (!growCount && (this._flexHorizontalAlign != "left")) {
 				xOffset += this._flexHorizontalAlign == "center" ? growPool / 2 : growPool
 			}
@@ -285,11 +309,11 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 					const amount = growCount > 1 ? Math.floor(growFactor * element._flexGrow) : growPool
 					growCount -= 1
 					growPool -= amount
-					element.cachedWidth = element.width + amount
-					element.cachedHeight = null
+					element._cachedWidth = element.width + amount
+					element._cachedHeight = null
 				}
-				element.cachedTop = this._padding.top + element.top
-				element.cachedLeft = xOffset + element.left
+				element._cachedTop = element.top
+				element._cachedLeft = xOffset + element.left
 				element.dirty = true
 				xOffset += element.outerWidth
 			}
@@ -298,13 +322,13 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			for (const element of this.children) {
 				if (this._enabled && !element._ignoreLayout && (this._flexVerticalAlign != "top")) {
 					const diff = height - element.outerHeight
-					element.cachedTop! += this._flexVerticalAlign == "middle" ? diff / 2 : diff
+					element._cachedTop! += this._flexVerticalAlign == "middle" ? diff / 2 : diff
 				}
 			}
 		} else {
 			const height = this.innerHeight
 			let growPool = height - this.childrenHeight
-			let yOffset = this._padding.top
+			let yOffset = 0
 			if (!growCount && (this._flexVerticalAlign != "top")) {
 				yOffset += this._flexVerticalAlign == "middle" ? growPool / 2 : growPool
 			}
@@ -317,11 +341,11 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 					const amount = growCount > 1 ? Math.floor(growFactor * element._flexGrow) : growPool
 					growCount -= 1
 					growPool -= amount
-					element.cachedHeight = element.height + amount
-					element.cachedWidth = null
+					element._cachedHeight = element.height + amount
+					element._cachedWidth = null
 				}
-				element.cachedLeft = element.left + this._padding.left
-				element.cachedTop = yOffset + element.top
+				element._cachedLeft = element.left
+				element._cachedTop = yOffset + element.top
 				element.dirty = true
 				yOffset += element.outerHeight
 			}
@@ -330,7 +354,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			for (const element of this.children) {
 				if (this._enabled && !element._ignoreLayout && (this._flexHorizontalAlign != "left")) {
 					const diff = width - element.outerWidth
-					element.cachedLeft! += this._flexHorizontalAlign == "center" ? diff / 2 : diff
+					element._cachedLeft! += this._flexHorizontalAlign == "center" ? diff / 2 : diff
 				}
 			}
 		}
@@ -357,10 +381,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 
 	public setDirty(force?: boolean) {
 		if (!this.dirty || force) {
-			this.cachedTop = null
-			this.cachedLeft = null
-			this.cachedWidth = null
-			this.cachedHeight = null
+			this._cachedTop = null
+			this._cachedLeft = null
+			this._cachedWidth = null
+			this._cachedHeight = null
 			this.dirty = true
 			this._layoutReady = false
 			if (this._flexMode != "none" || this._volatile) {
@@ -431,6 +455,50 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.setDirty()
 	}
 
+	public get marginTop() {
+		return this._margin.top
+	}
+
+	public set marginTop(value: number) {
+		if (this._margin.top != value) {
+			this._margin.top = value
+			this.setDirty()
+		}
+	}
+
+	public get marginBottom() {
+		return this._margin.bottom
+	}
+
+	public set marginBottom(value: number) {
+		if (this._margin.bottom != value) {
+			this._margin.bottom = value
+			this.setDirty()
+		}
+	}
+
+	public get marginLeft() {
+		return this._margin.left
+	}
+
+	public set marginLeft(value: number) {
+		if (this._margin.left != value) {
+			this._margin.left = value
+			this.setDirty()
+		}
+	}
+
+	public get marginRight() {
+		return this._margin.right
+	}
+
+	public set marginRight(value: number) {
+		if (this._margin.right != value) {
+			this._margin.right = value
+			this.setDirty()
+		}
+	}
+
 	public setMargin(value: PositioningBox) {
 		this._margin = LayoutElement.resolvePositioningBox(value)
 		this.setDirty()
@@ -445,6 +513,50 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.setDirty()
 	}
 
+	public get paddingTop() {
+		return this._padding.top
+	}
+
+	public set paddingTop(value: number) {
+		if (this._padding.top != value) {
+			this._padding.top = value
+			this.setDirty()
+		}
+	}
+
+	public get paddingBottom() {
+		return this._padding.bottom
+	}
+
+	public set paddingBottom(value: number) {
+		if (this._padding.bottom != value) {
+			this._padding.bottom = value
+			this.setDirty()
+		}
+	}
+
+	public get paddingLeft() {
+		return this._padding.left
+	}
+
+	public set paddingLeft(value: number) {
+		if (this._padding.left != value) {
+			this._padding.left = value
+			this.setDirty()
+		}
+	}
+
+	public get paddingRight() {
+		return this._padding.right
+	}
+
+	public set paddingRight(value: number) {
+		if (this._padding.right != value) {
+			this._padding.right = value
+			this.setDirty()
+		}
+	}
+
 	public setPadding(value: PositioningBox) {
 		this._padding = LayoutElement.resolvePositioningBox(value)
 		this.setDirty()
@@ -455,9 +567,11 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set volatile(value: boolean) {
-		this._volatile = value
-		if (value) {
-			this.setDirty()
+		if (this._volatile != value) {
+			this._volatile = value
+			if (value) {
+				this.setDirty()
+			}
 		}
 	}
 
@@ -466,8 +580,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set ignoreLayout(value: boolean) {
-		this._ignoreLayout = value
-		this.setDirty()
+		if (this._ignoreLayout != value) {
+			this._ignoreLayout = value
+			this.setDirty()
+		}
 	}
 
 	public get flexMode() {
@@ -475,8 +591,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set flexMode(value: "none" | "horizontal" | "vertical") {
-		this._flexMode = value
-		this.setDirty()
+		if (this._flexMode != value) {
+			this._flexMode = value
+			this.setDirty()
+		}
 	}
 
 	public get flexHorizontalAlign() {
@@ -484,8 +602,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set flexHorizontalAlign(value: "left" | "right" | "center") {
-		this._flexHorizontalAlign = value
-		this.setDirty()
+		if (this._flexHorizontalAlign != value) {
+			this._flexHorizontalAlign = value
+			this.setDirty()
+		}
 	}
 
 	public get flexVerticalAlign() {
@@ -493,8 +613,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set flexVerticalAlign(value: "top" | "bottom" | "middle") {
-		this._flexVerticalAlign = value
-		this.setDirty()
+		if (this._flexVerticalAlign != value) {
+			this._flexVerticalAlign = value
+			this.setDirty()
+		}
 	}
 
 	public get flexGrow() {
@@ -502,8 +624,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public set flexGrow(value: number) {
-		this._flexGrow = value
-		this.setDirty()
+		if (this._flexGrow != value) {
+			this._flexGrow = value
+			this.setDirty()
+		}
 	}
 
 	private onEnableStateChange(value: boolean) {
@@ -550,49 +674,57 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public get top(): number {
-		const value = this._top
-		return typeof value == "function" ? value(this as any) : value
+		if (this._cachedTop !== null) {
+			return this._cachedTop
+		}
+		const value = typeof this._top == "function" ? this._top(this as any) : this._top
+		this._cachedTop = value
+		return value
 	}
 
 	public set top(value: number) {
 		if (this._top != value) {
 			this._top = value
 		}
-		this.setDirty(this.cachedTop !== null)
+		this.setDirty(this._cachedTop !== null)
 	}
 
 	public setTop(value: number | ((element: T) => number)) {
 		if (this._top != value) {
 			this._top = value
 		}
-		this.setDirty(this.cachedTop !== null)
+		this.setDirty(this._cachedTop !== null)
 	}
 
 	public get left(): number {
-		const value = this._left
-		return typeof value == "function" ? value(this as any) : value
+		if (this._cachedLeft !== null) {
+			return this._cachedLeft
+		}
+		const value = typeof this._left == "function" ? this._left(this as any) : this._left
+		this._cachedLeft = value
+		return value
 	}
 
 	public set left(value: number) {
 		if (value != this._left) {
 			this._left = value
 		}
-		this.setDirty(this.cachedLeft !== null)
+		this.setDirty(this._cachedLeft !== null)
 	}
 
 	public setLeft(value: number | ((element: T) => number)) {
 		if (value != this._left) {
 			this._left = value
 		}
-		this.setDirty(this.cachedLeft !== null)
+		this.setDirty(this._cachedLeft !== null)
 	}
 
 	public get innerTop() {
-		return (this.cachedTop !== null ? this.cachedTop : this.top) + this._margin.top
+		return this.top + this._margin.top + this._padding.top
 	}
 
 	public get innerLeft() {
-		return (this.cachedLeft !== null ? this.cachedLeft : this.left) + this._margin.left
+		return this.left + this._margin.left + this._padding.left
 	}
 
 	public setWidth(value: number | ((element: T) => number | null) | null | string) {
@@ -606,7 +738,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			} else {
 				this._width = value
 			}
-			this.setDirty(this.cachedWidth !== null)
+			this.setDirty(this._cachedWidth !== null)
 		}
 	}
 
@@ -614,16 +746,16 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	public set width(value: number) {
 		if (this._width !== value) {
 			this._width = value
-			this.setDirty(this.cachedWidth !== null)
+			this.setDirty(this._cachedWidth !== null)
 		}
 	}
 
 	public get width(): number {
-		if (this.cachedWidth === null) {
+		if (this._cachedWidth === null) {
 			if (typeof this._width == "function") {
-				this.cachedWidth = this._width(this as any)
+				this._cachedWidth = this._width(this as any)
 			} else if (this._width) {
-				this.cachedWidth = this._width
+				this._cachedWidth = this._width
 			} else if (this._width === 0) {
 				return 0
 			} else {
@@ -631,17 +763,16 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 					if ((this._flexGrow > 0) && (this.parentLayout == "horizontal")) {
 						return 0
 					}
-					this.cachedWidth = this.contentWidth
+					this._cachedWidth = this.contentWidth
 				} else if (this._flexMode == "horizontal") {
-					this.cachedWidth = this.childrenWidth
+					this._cachedWidth = this.childrenWidth + + this._padding.left + this._padding.right
 				} else {
 					this.resolveLayout()
-					this.cachedWidth = this.childrenMaxWidth
+					this._cachedWidth = this.childrenMaxWidth
 				}
-				this.cachedWidth += this._padding.left + this._padding.right
 			}
 		}
-		return this.cachedWidth || 0
+		return this._cachedWidth || 0
 	}
 
 	public get outerWidth() {
@@ -659,27 +790,28 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				if (!match) {
 					throw new Error(`unknown height format: ${value}`)
 				}
-				this._height = element => element._parent?.heightReady ? (element._parent.innerHeight * (parseInt(match[1], 10) / 100)) : null
+				const amount = (parseInt(match[1], 10) / 100)
+				this._height = element => element._parent!.height * amount
 			} else {
 				this._height = value
 			}
-			this.setDirty(this.cachedHeight !== null)
+			this.setDirty(this._cachedHeight !== null)
 		}
 	}
 
 	public set height(value: number) {
 		if (this._height !== value) {
 			this._height = value
-			this.setDirty(this.cachedHeight !== null)
+			this.setDirty(this._cachedHeight !== null)
 		}
 	}
 
 	public get height(): number {
-		if (this.cachedHeight === null) {
+		if (this._cachedHeight === null) {
 			if (typeof this._height == "function") {
-				this.cachedHeight = this._height(this as any)
+				this._cachedHeight = this._height(this as any)
 			} else if (this._height) {
-				this.cachedHeight = this._height
+				this._cachedHeight = this._height
 			} else if (this._height === 0) {
 				return 0
 			} else {
@@ -687,17 +819,16 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 					if ((this._flexGrow > 0) && (this.parentLayout == "vertical")) {
 						return 0
 					}
-					this.cachedHeight = this.contentHeight
+					this._cachedHeight = this.contentHeight
 				} else if (this._flexMode == "horizontal") {
 					this.resolveLayout()
-					this.cachedHeight = this.childrenMaxHeight
+					this._cachedHeight = this.childrenMaxHeight
 				} else {
-					this.cachedHeight = this.childrenHeight
+					this._cachedHeight = this.childrenHeight + this._padding.top + this._padding.bottom
 				}
-				this.cachedHeight += this._padding.top + this._padding.bottom
 			}
 		}
-		return this.cachedHeight || 0
+		return this._cachedHeight || 0
 	}
 
 	public get outerHeight() {
@@ -713,11 +844,11 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public get widthReady() {
-		return (this.cachedWidth !== null) || (this._width !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "horizontal"))
+		return (this._cachedWidth !== null) || (this._width !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "horizontal"))
 	}
 
 	public get heightReady() {
-		return (this.cachedHeight !== null) || (this._height !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "vertical"))
+		return (this._cachedHeight !== null) || (this._height !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "vertical"))
 	}
 
 	public get hasWidth() {
