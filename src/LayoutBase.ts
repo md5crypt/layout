@@ -56,6 +56,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	public readonly children: T[]
 	public readonly factory: LayoutFactory
 	public readonly metadata: Record<string, any>
+	public readonly config: Readonly<LayoutElementConfig<T>>
 
 	public onUpdateCallback?: (element: T) => void
 	public onBeforeLayoutResolveCallback?: (element: T) => void
@@ -131,6 +132,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.childrenMap = new Map()
 		this.metadata = {}
 		const config = props.config as LayoutElementConfig<LayoutElement<T, K>>
+		this.config = config
 		if (config) {
 			this.name = config.name
 			if (config.metadata) {
