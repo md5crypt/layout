@@ -73,7 +73,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	private _cachedHeight: number | null
 	private _cachedTop: number | null
 	private _cachedLeft: number | null
-	private dirty: boolean
+	private _dirty: boolean
 
 	protected _enabled: boolean
 	protected _top: number | ((element: T) => number)
@@ -126,7 +126,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this._cachedWidth = null
 		this._cachedHeight = null
 		this._enabled = true
-		this.dirty = true
+		this._dirty = true
 		this._layoutReady = false
 		this.children = []
 		this.childrenMap = new Map()
@@ -316,7 +316,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				}
 				element._cachedTop = element.top
 				element._cachedLeft = xOffset + element.left
-				element.dirty = true
+				element._dirty = true
 				xOffset += element.outerWidth
 			}
 			this._layoutReady = true
@@ -348,7 +348,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 				}
 				element._cachedLeft = element.left
 				element._cachedTop = yOffset + element.top
-				element.dirty = true
+				element._dirty = true
 				yOffset += element.outerHeight
 			}
 			this._layoutReady = true
@@ -382,12 +382,12 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public setDirty(force?: boolean) {
-		if (!this.dirty || force) {
+		if (!this._dirty || force) {
 			this._cachedTop = null
 			this._cachedLeft = null
 			this._cachedWidth = null
 			this._cachedHeight = null
-			this.dirty = true
+			this._dirty = true
 			this._layoutReady = false
 			if (this._flexMode != "none" || this._volatile) {
 				for (let i = 0; i < this.children.length; i += 1) {
@@ -402,6 +402,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return false
 	}
 
+	public get dirty() {
+		return this._dirty
+	}
+
 	public forEach(callback: (element: T) => void) {
 		callback(this as any)
 		for (let i = 0; i < this.children.length; i += 1) {
@@ -414,13 +418,13 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 			if (this.onUpdateCallback) {
 				this.onUpdateCallback(this as any)
 			}
-			if (this.dirty) {
+			if (this._dirty) {
 				if (this.onBeforeLayoutResolveCallback) {
 					this.onBeforeLayoutResolveCallback(this as any)
 				}
 				this.resolveLayout()
 				this.children.forEach(element => element.update())
-				this.dirty = false
+				this._dirty = false
 				if (this.onBeforeRedrawCallback) {
 					this.onBeforeRedrawCallback(this as any)
 				}
