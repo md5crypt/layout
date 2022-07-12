@@ -1,4 +1,4 @@
-export type ElementTypeNode = Record<string, {config: any, element: LayoutElement<any, LayoutElementJson>}>
+export type ElementTypeNode = Record<string, {config: any, element: LayoutElement<LayoutElementJson>}>
 
 type CollectElementTypes<T extends ElementTypeNode> = {
 	[K in keyof T]: {
@@ -18,7 +18,7 @@ export interface ResolvedPositioningBox {
 
 export type PositioningBox = Readonly<(Partial<ResolvedPositioningBox> & {vertical?: number, horizontal?: number}) | number>
 
-export interface LayoutElementConfig<T extends LayoutElement<any, LayoutElementJson> = LayoutElement> {
+export interface LayoutElementConfig<T extends LayoutElement<LayoutElementJson> = any> {
 	name?: string
 	top?: number | ((element: T) => number)
 	left?: number | ((element: T) => number)
@@ -44,30 +44,30 @@ export interface LayoutElementConfig<T extends LayoutElement<any, LayoutElementJ
 	onAttach?: (element: T) => void
 }
 
-export interface LayoutElementConstructorProperties<T extends LayoutElementConfig<any>> {
+export interface LayoutElementConstructorProperties<T extends LayoutElementConfig> {
 	factory: LayoutFactory
 	type: string
 	config?: T
 }
 
-export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends LayoutElementJson = any> {
+export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE extends LayoutElement<CONFIG, BASE> = any, SELF extends BASE = BASE> {
 	public readonly type: string
 	public readonly name?: string
-	public readonly children: T[]
+	public readonly children: BASE[]
 	public readonly factory: LayoutFactory
 	public readonly metadata: Record<string, any>
-	public readonly config: Readonly<LayoutElementConfig<T>>
+	public readonly config: Readonly<LayoutElementConfig<SELF>>
 
-	public onUpdateCallback?: (element: T) => void
-	public onBeforeLayoutResolveCallback?: (element: T) => void
-	public onBeforeRedrawCallback?: (element: T) => void
-	public onAfterRedrawCallback?: (element: T) => void
-	public onEnableCallback?: (element: T) => void
-	public onDisableCallback?: (element: T) => void
-	public onDetachCallback?: (element: T) => void
-	public onAttachCallback?: (element: T) => void
+	public onUpdateCallback?: (element: SELF) => void
+	public onBeforeLayoutResolveCallback?: (element: SELF) => void
+	public onBeforeRedrawCallback?: (element: SELF) => void
+	public onAfterRedrawCallback?: (element: SELF) => void
+	public onEnableCallback?: (element: SELF) => void
+	public onDisableCallback?: (element: SELF) => void
+	public onDetachCallback?: (element: SELF) => void
+	public onAttachCallback?: (element: SELF) => void
 
-	protected _parent: T | null
+	protected _parent: BASE | null
 
 	private _cachedWidth: number | null
 	private _cachedHeight: number | null
@@ -76,10 +76,10 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	private _dirty: boolean
 
 	protected _enabled: boolean
-	protected _top: number | ((element: T) => number)
-	protected _left: number | ((element: T) => number)
-	protected _width: number | ((element: T) => number | null) | null
-	protected _height: number | ((element: T) => number | null) | null
+	protected _top: number | ((element: SELF) => number)
+	protected _left: number | ((element: SELF) => number)
+	protected _width: number | ((element: SELF) => number | null) | null
+	protected _height: number | ((element: SELF) => number | null) | null
 	protected _padding: ResolvedPositioningBox
 	protected _margin: ResolvedPositioningBox
 	protected _flexMode: "none" | "horizontal" | "vertical"
@@ -89,7 +89,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	protected _ignoreLayout: boolean
 	protected _volatile: boolean
 
-	private readonly childrenMap: Map<string, LayoutElement<any, K>>
+	private readonly childrenMap: Map<string, BASE>
 	private _layoutReady: boolean
 
 	public static resolvePositioningBox(value: PositioningBox): ResolvedPositioningBox {
@@ -105,7 +105,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	public constructor(props: LayoutElementConstructorProperties<LayoutElementConfig<T>>) {
+	public constructor(props: LayoutElementConstructorProperties<LayoutElementConfig<SELF>>) {
 		this.factory = props.factory
 		this.type = props.type
 		this._top = 0
@@ -131,8 +131,8 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.children = []
 		this.childrenMap = new Map()
 		this.metadata = {}
-		const config = props.config as LayoutElementConfig<LayoutElement<T, K>>
-		this.config = config
+		const config = props.config
+		this.config = config || {}
 		if (config) {
 			this.name = config.name
 			if (config.metadata) {
@@ -188,7 +188,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	private nameAdd(element: LayoutElement<any, K>) {
+	private nameAdd(element: BASE) {
 		if (this.name) {
 			this.childrenMap.set(element.name!, element)
 		} else if (this._parent) {
@@ -196,7 +196,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	private nameRemove(element: LayoutElement<any, K>) {
+	private nameRemove(element: BASE) {
 		if (this.name) {
 			this.childrenMap.delete(element.name!)
 		} else if (this._parent) {
@@ -204,7 +204,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	private nameRemoveRecursion(element: T) {
+	private nameRemoveRecursion(element: BASE) {
 		if (element.name) {
 			if (element.name[0] != "@") {
 				this.nameRemove(element)
@@ -221,9 +221,9 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	private removeElement(element: T): boolean
+	private removeElement(element: BASE): boolean
 	private removeElement(index: number): boolean
-	private removeElement(arg: T | number) {
+	private removeElement(arg: BASE | number) {
 		const element = typeof arg == "number" ? this.children[arg] : arg
 		const index = typeof arg == "number" ? arg : this.children.indexOf(element)
 		if (index >= 0) {
@@ -281,7 +281,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		// no-op by default
 	}
 
-	protected onInsertElement(_element: T, _index: number) {
+	protected onInsertElement(_element: BASE, _index: number) {
 		// no-op by default
 	}
 
@@ -366,7 +366,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this._parent != null
 	}
 
-	public get parent(): T {
+	public get parent(): BASE {
 		if (!this._parent) {
 			throw new Error("layout parent is null!")
 		}
@@ -406,7 +406,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this._dirty
 	}
 
-	public forEach(callback: (element: T) => void) {
+	public forEach(callback: (element: BASE) => void) {
 		callback(this as any)
 		for (let i = 0; i < this.children.length; i += 1) {
 			this.children[i].forEach(callback)
@@ -695,7 +695,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.setDirty(this._cachedTop !== null)
 	}
 
-	public setTop(value: number | ((element: T) => number)) {
+	public setTop(value: number | ((element: SELF) => number)) {
 		if (this._top != value) {
 			this._top = value
 		}
@@ -718,7 +718,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		this.setDirty(this._cachedLeft !== null)
 	}
 
-	public setLeft(value: number | ((element: T) => number)) {
+	public setLeft(value: number | ((element: SELF) => number)) {
 		if (value != this._left) {
 			this._left = value
 		}
@@ -733,7 +733,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this.left + this._margin.left + this._padding.left
 	}
 
-	public setWidth(value: number | ((element: T) => number | null) | null | string) {
+	public setWidth(value: number | ((element: SELF) => number | null) | null | string) {
 		if (this._width !== value) {
 			if (typeof value == "string") {
 				const match = value.match(/^(\d+)%$/)
@@ -789,7 +789,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this.width - this._padding.left - this._padding.right
 	}
 
-	public setHeight(value: number | ((element: T) => number | null) | null | string) {
+	public setHeight(value: number | ((element: SELF) => number | null) | null | string) {
 		if (this._height !== value) {
 			if (typeof value == "string") {
 				const match = value.match(/^(\d+)%$/)
@@ -873,7 +873,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this._parent ? this._parent.children.indexOf(this as any) : -1
 	}
 
-	public getPath(root?: T) {
+	public getPath(root?: BASE) {
 		if (this.name) {
 			const result = [this.name]
 			let parent = this._parent
@@ -890,7 +890,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public getElementPath() {
-		const list = [this as any] as T[]
+		const list = [this as any] as BASE[]
 		let parent = this._parent
 		while (parent) {
 			list.push(parent)
@@ -900,20 +900,20 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 	}
 
 	public getRoot() {
-		let element = this as LayoutElement
+		let element: BASE = this as any
 		while (true) {
 			const parent = element._parent
 			if (!parent || parent.type == "root") {
-				return element as T
+				return element
 			}
 			element = parent
 		}
 	}
 
-	public isParentOf(child: T) {
+	public isParentOf(child: BASE) {
 		let parent = child._parent
 		while (parent) {
-			if (parent == this as LayoutElement) {
+			if (parent == (this as any)) {
 				return true
 			}
 			parent = parent._parent
@@ -921,15 +921,15 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return false
 	}
 
-	public getElement<L extends T>(name: string): L
-	public getElement<L extends T>(name: string, noThrow: false): L
-	public getElement<L extends T>(name: string, noThrow: true): L | null
-	public getElement<L extends T>(name: string, noThrow = false): L | null {
+	public getElement<L extends BASE>(name: string): L
+	public getElement<L extends BASE>(name: string, noThrow: false): L
+	public getElement<L extends BASE>(name: string, noThrow: true): L | null
+	public getElement<L extends BASE>(name: string, noThrow = false): L | null {
 		if (!this.name) {
 			return this.parent.getElement<L>(name, noThrow as false)
 		}
 		const path = name.split(".")
-		let current: LayoutElement<any, K> = this
+		let current: BASE = this as any
 		for (let i = 0; i < path.length; i++) {
 			const child = current.childrenMap.get(path[i])
 			if (!child) {
@@ -947,7 +947,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return this.getElement(name, true) != null
 	}
 
-	public replaceElement(element: T | K, old: T | string): T {
+	public replaceElement(element: BASE | CONFIG, old: BASE | string): BASE {
 		const index = this.children.indexOf(typeof old == "string" ? this.getElement(old) : old)
 		if (index < 0) {
 			throw new Error("replacement target not found")
@@ -960,7 +960,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		}
 	}
 
-	public insertElement(element: T | K, before?: T | string | number): T {
+	public insertElement(element: BASE | CONFIG, before?: BASE | string | number): BASE {
 		if (!(element instanceof LayoutElement)) {
 			return this.factory.create(element, this, before)
 		}
@@ -992,7 +992,7 @@ export abstract class LayoutElement<T extends LayoutElement<T> = any, K extends 
 		return element
 	}
 
-	public insertElements(elements: (T | K)[], before?: T | string) {
+	public insertElements(elements: (BASE | CONFIG)[], before?: BASE | string) {
 		if (elements.length == 0) {
 			return
 		}
