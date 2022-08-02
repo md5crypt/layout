@@ -932,13 +932,22 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 		let current: BASE = this as any
 		for (let i = 0; i < path.length; i++) {
 			const child = current.childrenMap.get(path[i])
-			if (!child) {
-				if (noThrow) {
-					return null
+			if (child) {
+				current = child
+			} else if (path[i] == "parent" && current._parent) {
+				current = current._parent
+			} else {
+				const index = Number(path[i])
+				if (!isFinite(index) || index < 0 || current.children.length <= index) {
+					if (noThrow) {
+						return null
+					} else {
+						throw new Error(`could not resolve '${name}'`)
+					}
+				} else {
+					current = current.children[index]
 				}
-				throw new Error(`could not resolve '${name}'`)
 			}
-			current = child
 		}
 		return current as L
 	}

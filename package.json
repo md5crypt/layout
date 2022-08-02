@@ -1,6 +1,6 @@
 {
 	"name": "@md5crypt/layout",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "single-pass flex container layout engine implementation",
 	"main": "lib/LayoutBase.js",
 	"types": "lib/LayoutBase.d.ts",
