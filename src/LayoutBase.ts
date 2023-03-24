@@ -31,6 +31,7 @@ export interface LayoutElementConfig<T extends LayoutElement<LayoutElementJson> 
 	flexVerticalAlign?: "top" | "bottom" | "middle"
 	flexGrow?: number
 	ignoreLayout?: boolean
+	noChildrenMap?: boolean
 	volatile?: boolean
 	enabled?: boolean
 	metadata?: Record<string, any>
@@ -89,7 +90,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	protected _ignoreLayout: boolean
 	protected _volatile: boolean
 
-	private readonly childrenMap: Map<string, BASE>
+	private readonly _childrenMap: Map<string, BASE> | null
 	private _layoutReady: boolean
 
 	public static resolvePositioningBox(value: PositioningBox): ResolvedPositioningBox {
@@ -128,13 +129,16 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 		this._enabled = true
 		this._dirty = true
 		this._layoutReady = false
+		this._childrenMap = null
 		this.children = []
-		this.childrenMap = new Map()
 		this.metadata = {}
 		const config = props.config
 		this.config = config || {}
 		if (config) {
 			this.name = config.name
+			if (config.name && !config.noChildrenMap) {
+				this._childrenMap = new Map()
+			}
 			if (config.metadata) {
 				Object.assign(this.metadata, config.metadata)
 			}
@@ -189,16 +193,16 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	}
 
 	private nameAdd(element: BASE) {
-		if (this.name) {
-			this.childrenMap.set(element.name!, element)
+		if (this._childrenMap) {
+			this._childrenMap.set(element.name!, element)
 		} else if (this._parent) {
 			this._parent.nameAdd(element)
 		}
 	}
 
 	private nameRemove(element: BASE) {
-		if (this.name) {
-			this.childrenMap.delete(element.name!)
+		if (this._childrenMap) {
+			this._childrenMap.delete(element.name!)
 		} else if (this._parent) {
 			this._parent.nameRemove(element)
 		}
@@ -637,18 +641,16 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	}
 
 	private onEnableStateChange(value: boolean) {
-		if (this._enabled) {
-			if (value) {
-				if (this.onEnableCallback) {
-					this.onEnableCallback(this as any)
-				}
-			} else {
-				if (this.onDisableCallback) {
-					this.onDisableCallback(this as any)
-				}
+		if (value) {
+			if (this.onEnableCallback) {
+				this.onEnableCallback(this as any)
 			}
-			this.children.forEach(x => x.onEnableStateChange(value))
+		} else {
+			if (this.onDisableCallback) {
+				this.onDisableCallback(this as any)
+			}
 		}
+		this.children.forEach(x => x.onEnableStateChange(value))
 	}
 
 	protected onEnable() {
@@ -771,7 +773,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 					}
 					this._cachedWidth = this.contentWidth
 				} else if (this._flexMode == "horizontal") {
-					this._cachedWidth = this.childrenWidth + + this._padding.left + this._padding.right
+					this._cachedWidth = this.childrenWidth + this._padding.left + this._padding.right
 				} else {
 					this.resolveLayout()
 					this._cachedWidth = this.childrenMaxWidth
@@ -874,11 +876,14 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	}
 
 	public getPath(root?: BASE) {
+		if (this as any == root) {
+			return ""
+		}
 		if (this.name) {
 			const result = [this.name]
 			let parent = this._parent
 			while (parent && parent != root) {
-				if (parent.name) {
+				if (parent.name && parent._childrenMap) {
 					result.push(parent.name)
 				}
 				parent = parent._parent
@@ -925,13 +930,15 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	public getElement<L extends BASE>(name: string, noThrow: false): L
 	public getElement<L extends BASE>(name: string, noThrow: true): L | null
 	public getElement<L extends BASE>(name: string, noThrow = false): L | null {
-		if (!this.name) {
+		if (!name) {
+			return this as any
+		} else if (!this._childrenMap) {
 			return this.parent.getElement<L>(name, noThrow as false)
 		}
 		const path = name.split(".")
 		let current: BASE = this as any
-		for (let i = 0; i < path.length; i++) {
-			const child = current.childrenMap.get(path[i])
+		for (let i = 0; i < path.length; i += 1) {
+			const child = current._childrenMap ? current._childrenMap.get(path[i]) : null
 			if (child) {
 				current = child
 			} else if (path[i] == "parent" && current._parent) {
