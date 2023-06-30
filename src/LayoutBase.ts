@@ -907,8 +907,11 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	public getRoot() {
 		let element: BASE = this as any
 		while (true) {
+			if (element.type == "root") {
+				return element
+			}
 			const parent = element._parent
-			if (!parent || parent.type == "root") {
+			if (!parent) {
 				return element
 			}
 			element = parent
