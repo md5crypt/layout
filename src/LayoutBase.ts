@@ -24,6 +24,9 @@ export interface LayoutElementConfig<T extends LayoutElement<LayoutElementJson> 
 	left?: number | ((element: T) => number)
 	width?: number | ((element: T) => number | null) | string
 	height?: number | ((element: T) => number | null) | string
+	scale?: number
+	origin?: [number, number] | number
+	fill?: [number, number] | number
 	padding?: PositioningBox
 	margin?: PositioningBox
 	flexMode?: "none" | "horizontal" | "vertical"
@@ -75,8 +78,14 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	private _cachedTop: number | null
 	private _cachedLeft: number | null
 	private _dirty: boolean
+	private _xOrigin: number
+	private _yOrigin: number
+	private _xFill: number
+	private _yFill: number
 
 	protected _enabled: boolean
+	protected _scale: number
+	protected _parentScale: number
 	protected _top: number | ((element: SELF) => number)
 	protected _left: number | ((element: SELF) => number)
 	protected _width: number | ((element: SELF) => number | null) | null
@@ -111,6 +120,12 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 		this.type = props.type
 		this._top = 0
 		this._left = 0
+		this._scale = 1
+		this._parentScale = 1
+		this._xOrigin = 0
+		this._yOrigin = 0
+		this._xFill = 0
+		this._yFill = 0
 		this._width = null
 		this._height = null
 		this._padding = {top: 0, left: 0, bottom: 0, right: 0}
@@ -189,6 +204,27 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 			if (config.volatile !== undefined) {
 				this.volatile = config.volatile
 			}
+			if (config.scale !== undefined) {
+				this._scale = config.scale
+			}
+			if (config.origin !== undefined) {
+				if (Array.isArray(config.origin)) {
+					this._xOrigin = config.origin[0]
+					this._yOrigin = config.origin[1]
+				} else {
+					this._xOrigin = config.origin
+					this._yOrigin = config.origin
+				}
+			}
+			if (config.fill !== undefined) {
+				if (Array.isArray(config.fill)) {
+					this._xFill = config.fill[0]
+					this._yFill = config.fill[1]
+				} else {
+					this._xFill = config.fill
+					this._yFill = config.fill
+				}
+			}
 		}
 	}
 
@@ -219,7 +255,12 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	}
 
 	private detachRecursion() {
-		this.children.forEach(child => child.detachRecursion())
+		for (let i = 0; i < this.children.length; i += 1) {
+			this.children[i].detachRecursion()
+		}
+		if (this.onDetach) {
+			this.onDetach()
+		}
 		if (this.onDetachCallback) {
 			this.onDetachCallback(this as any)
 		}
@@ -235,7 +276,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 			this.onRemoveElement(index)
 			this.children.splice(index, 1)
 			this.setDirty()
-			this.detachRecursion()
+			element.detachRecursion()
 			return true
 		}
 		return false
@@ -292,6 +333,9 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	protected onUpdate() {
 		// no-op by default
 	}
+
+	protected onDetach?(): void
+	protected onAttach?(): void
 
 	protected resolveLayout() {
 		if (this._layoutReady || this._flexMode == "none") {
@@ -661,6 +705,13 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 		// empty by default
 	}
 
+	public onScaleChange(parentScale: number) {
+		this._parentScale = parentScale
+		for (let i = 0; i < this.children.length; i += 1) {
+			this.children[i].onScaleChange(parentScale * this._scale)
+		}
+	}
+
 	public get enabled() {
 		return this._enabled
 	}
@@ -728,11 +779,19 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 	}
 
 	public get innerTop() {
-		return this.top + this._margin.top + this._padding.top
+		let value = this.top + this._margin.top + this._padding.top
+		if (this._yOrigin) {
+			value += this._yOrigin * this._parent!.height
+		}
+		return value
 	}
 
 	public get innerLeft() {
-		return this.left + this._margin.left + this._padding.left
+		let value = this.left + this._margin.left + this._padding.left
+		if (this._xOrigin) {
+			value += this._xOrigin * this._parent!.width
+		}
+		return value
 	}
 
 	public setWidth(value: number | ((element: SELF) => number | null) | null | string) {
@@ -760,25 +819,32 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 
 	public get width(): number {
 		if (this._cachedWidth === null) {
+			let value
 			if (typeof this._width == "function") {
-				this._cachedWidth = this._width(this as any)
+				value = this._width(this as any)
 			} else if (this._width) {
-				this._cachedWidth = this._width
+				value = this._width
 			} else if (this._width === 0) {
-				return 0
+				value = 0
 			} else {
 				if (this._flexMode == "none") {
 					if ((this._flexGrow > 0) && (this.parentLayout == "horizontal")) {
-						return 0
+						value = 0
+					} else {
+						value = this.contentWidth
 					}
-					this._cachedWidth = this.contentWidth
 				} else if (this._flexMode == "horizontal") {
-					this._cachedWidth = this.childrenWidth + this._padding.left + this._padding.right
+					value = this.childrenWidth + this._padding.left + this._padding.right
 				} else {
 					this.resolveLayout()
-					this._cachedWidth = this.childrenMaxWidth
+					value = this.childrenMaxWidth
 				}
 			}
+			if (this._xFill && value !== null) {
+				value += this._parent!.width * this._xFill
+			}
+			this._cachedWidth = value
+			return value || 0
 		}
 		return this._cachedWidth || 0
 	}
@@ -816,27 +882,181 @@ export abstract class LayoutElement<CONFIG extends LayoutElementJson = any, BASE
 
 	public get height(): number {
 		if (this._cachedHeight === null) {
+			let value
 			if (typeof this._height == "function") {
-				this._cachedHeight = this._height(this as any)
+				value = this._height(this as any)
 			} else if (this._height) {
-				this._cachedHeight = this._height
+				value = this._height
 			} else if (this._height === 0) {
-				return 0
+				value = 0
 			} else {
 				if (this._flexMode == "none") {
 					if ((this._flexGrow > 0) && (this.parentLayout == "vertical")) {
-						return 0
+						value = 0
+					} else {
+						value = this.contentHeight
 					}
-					this._cachedHeight = this.contentHeight
 				} else if (this._flexMode == "horizontal") {
 					this.resolveLayout()
-					this._cachedHeight = this.childrenMaxHeight
+					value = this.childrenMaxHeight
 				} else {
-					this._cachedHeight = this.childrenHeight + this._padding.top + this._padding.bottom
+					value = this.childrenHeight + this._padding.top + this._padding.bottom
 				}
 			}
+			if (this._yFill && value !== null) {
+				value += this._parent!.height * this._yFill
+			}
+			this._cachedHeight = value
+			return value || 0
 		}
 		return this._cachedHeight || 0
+	}
+
+	public set scale(value: number) {
+		if (this._scale != value) {
+			this._scale = value
+			this.onScaleChange(this._parentScale)
+			this.setDirty()
+		}
+	}
+
+	public get scale() {
+		return this._scale
+	}
+
+	public get globalScale() {
+		return this._scale * this._parentScale
+	}
+
+	public get xOrigin() {
+		return this._xOrigin
+	}
+
+	public set xOrigin(value: number) {
+		if (this._xOrigin != value) {
+			this._xOrigin = value
+			this.setDirty()
+		}
+	}
+
+	public get yOrigin() {
+		return this._yOrigin
+	}
+
+	public set yOrigin(value: number) {
+		if (this._yOrigin != value) {
+			this._yOrigin = value
+			this.setDirty()
+		}
+	}
+
+	public setOrigin(x: number, y?: number) {
+		this.xOrigin = x
+		this.yOrigin = y === undefined ? x : y
+	}
+
+	public get xFill() {
+		return this._xFill
+	}
+
+	public set xFill(value: number) {
+		if (this._xFill != value) {
+			this._xFill = value
+			this.setDirty()
+		}
+	}
+
+	public get yFill() {
+		return this._yFill
+	}
+
+	public set yFill(value: number) {
+		if (this._yFill != value) {
+			this._yFill = value
+			this.setDirty()
+		}
+	}
+
+	public setFill(x: number, y?: number) {
+		this.xFill = x
+		this.yFill = y === undefined ? x : y
+	}
+
+	public get globalBoundingBox() {
+		const result = {
+			top: this.innerTop,
+			left: this.innerLeft,
+			width: 0,
+			height: 0
+		}
+		if (this._width == null && this.flexMode == "none") {
+			const bounds = this.horizontalBounds
+			result.left -= result.left - bounds[0]
+			result.width = bounds[1] - bounds[0]
+		} else {
+			result.width = this.innerWidth * this._scale
+		}
+		if (this._height == null && this.flexMode == "none") {
+			const bounds = this.verticalBounds
+			result.top -= result.top - bounds[0]
+			result.height = bounds[1] - bounds[0]
+		} else {
+			result.height = this.innerHeight * this._scale
+		}
+		let parent = this._parent
+		while (parent) {
+			if (parent._scale) {
+				result.top = (result.top * parent._scale) + parent.innerTop
+				result.left = (result.left * parent._scale) + parent.innerLeft
+				result.width *= parent._scale
+				result.height *= parent._scale
+			} else {
+				result.top += parent.innerTop
+				result.left += parent.innerLeft
+			}
+			parent = parent._parent
+		}
+		return result
+	}
+
+	public get horizontalBounds() {
+		const width = this.width * this.scale
+		const offset = this.innerLeft
+		if (width || this._width === 0) {
+			return [offset, offset + width]
+		}
+		let min = Infinity
+		let max = -Infinity
+		for (const child of this.children) {
+			if (child.enabled) {
+				const bounds = child.horizontalBounds
+				min = Math.min(min, bounds[0])
+				max = Math.max(max, bounds[1])
+			}
+		}
+		min *= this.scale
+		max *= this.scale
+		return isFinite(min + max) ? [offset + min, offset + max] : [offset, offset]
+	}
+
+	public get verticalBounds() {
+		const height = this.height * this.scale
+		const offset = this.innerTop
+		if (height || this._height === 0) {
+			return [offset, offset + height]
+		}
+		let min = Infinity
+		let max = -Infinity
+		for (const child of this.children) {
+			if (child.enabled) {
+				const bounds = child.verticalBounds
+				min = Math.min(min, bounds[0])
+				max = Math.max(max, bounds[1])
+			}
+		}
+		min *= this.scale
+		max *= this.scale
+		return isFinite(min + max) ? [offset + min, offset + max] : [offset, offset]
 	}
 
 	public get outerHeight() {
