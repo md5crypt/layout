@@ -1,11 +1,8 @@
-export interface ResolvedPositioningBox {
-	top: number
-	left: number
-	bottom: number
-	right: number
-}
-
-export interface PositioningBox extends Partial<ResolvedPositioningBox> {
+export interface PositioningBox {
+	top?: number
+	left?: number
+	bottom?: number
+	right?: number
 	vertical?: number
 	horizontal?: number
 }
@@ -19,19 +16,16 @@ export interface LayoutElementConfig<CONFIG extends LayoutElementConfig = any, S
 	name?: string
 	top?: number | LayoutElementPositionCallback<SELF>
 	left?: number | LayoutElementPositionCallback<SELF>
-	width?: number | string | LayoutElementSizeCallback<SELF>
-	height?: number | string | LayoutElementSizeCallback<SELF>
+	width?: number | LayoutElementSizeCallback<SELF>
+	height?: number | LayoutElementSizeCallback<SELF>
+	marginLeft?: number
+	marginTop?: number
+	paddingWidth?: number
+	paddingHeight?: number
 	scale?: number
 	anchor?: [number, number] | number
 	origin?: [number, number] | number
 	fill?: [number, number] | number
-	padding?: PositioningBox | number
-	margin?: PositioningBox | number
-	flexMode?: "none" | "horizontal" | "vertical"
-	flexHorizontalAlign?: "left" | "right" | "center"
-	flexVerticalAlign?: "top" | "bottom" | "middle"
-	flexGrow?: number
-	ignoreLayout?: boolean
 	noChildrenMap?: boolean
 	volatile?: boolean
 	enabled?: boolean
@@ -41,9 +35,6 @@ export interface LayoutElementConfig<CONFIG extends LayoutElementConfig = any, S
 	onBeforeLayoutResolve?: LayoutElementCallback<SELF>
 	onBeforeRedraw?: LayoutElementCallback<SELF>
 	onAfterRedraw?: LayoutElementCallback<SELF>
-	onEnable?: LayoutElementCallback<SELF>
-	onDisable?: LayoutElementCallback<SELF>
-	onDetach?: LayoutElementCallback<SELF>
 	onAttach?: LayoutElementCallback<SELF>
 }
 
@@ -57,54 +48,37 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public onBeforeLayoutResolveCallback?: <T extends this>(element: T) => void
 	public onBeforeRedrawCallback?: <T extends this>(element: T) => void
 	public onAfterRedrawCallback?: <T extends this>(element: T) => void
-	public onEnableCallback?: <T extends this>(element: T) => void
-	public onDisableCallback?: <T extends this>(element: T) => void
-	public onDetachCallback?: <T extends this>(element: T) => void
 	public onAttachCallback?: <T extends this>(element: T) => void
 
-	private _cachedWidth: number | null
-	private _cachedHeight: number | null
-	private _cachedTop: number | null
-	private _cachedLeft: number | null
-	private _dirty: boolean
-	private _xAnchor: number
-	private _yAnchor: number
-	private _xOrigin: number
-	private _yOrigin: number
-	private _xFill: number
-	private _yFill: number
-	private _layoutReady: boolean
+	protected _parent: BASE | null
+
 	private readonly _childrenMap: Map<string, LayoutElement> | null
 
-	protected _parent: BASE | null
+	private _cachedWidth: number
+	private _cachedHeight: number
+	private _cachedTop: number
+	private _cachedLeft: number
+
+	protected _dirty: boolean
+	protected _xAnchor: number
+	protected _yAnchor: number
+	protected _xOrigin: number
+	protected _yOrigin: number
+	protected _xFill: number
+	protected _yFill: number
+
+	protected _marginTop: number
+	protected _marginLeft: number
+	protected _paddingWidth: number
+	protected _paddingHeight: number
+
 	protected _enabled: boolean
 	protected _scale: number
-	protected _parentScale: number
 	protected _top: number | (<T extends this>(element: T) => number)
 	protected _left: number | (<T extends this>(element: T) => number)
 	protected _width: number | (<T extends this>(element: T) => number | null) | null
 	protected _height: number | (<T extends this>(element: T) => number | null) | null
-	protected _padding: ResolvedPositioningBox
-	protected _margin: ResolvedPositioningBox
-	protected _flexMode: "none" | "horizontal" | "vertical"
-	protected _flexHorizontalAlign: "left" | "right" | "center"
-	protected _flexVerticalAlign: "top" | "bottom" | "middle"
-	protected _flexGrow: number
-	protected _ignoreLayout: boolean
 	protected _volatile: boolean
-
-	public static resolvePositioningBox(value: PositioningBox | number): ResolvedPositioningBox {
-		if (typeof value == "number") {
-			return { top: value, left: value, bottom: value, right: value }
-		} else {
-			return {
-				top: value.top === undefined ? (value.vertical || 0) : value.top,
-				left: value.left === undefined ? (value.horizontal || 0) : value.left,
-				bottom: value.bottom === undefined ? (value.vertical || 0) : value.bottom,
-				right: value.right === undefined ? (value.horizontal || 0) : value.right
-			}
-		}
-	}
 
 	public constructor(factory: LayoutFactory, config: Readonly<LayoutElementConfig>) {
 		this.config = config
@@ -112,7 +86,6 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		this._top = 0
 		this._left = 0
 		this._scale = 1
-		this._parentScale = 1
 		this._xAnchor = 0
 		this._yAnchor = 0
 		this._xOrigin = 0
@@ -121,22 +94,18 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		this._yFill = 0
 		this._width = null
 		this._height = null
-		this._padding = {top: 0, left: 0, bottom: 0, right: 0}
-		this._margin = {top: 0, left: 0, bottom: 0, right: 0}
-		this._flexMode = "none"
-		this._flexHorizontalAlign = "left"
-		this._flexVerticalAlign = "top"
-		this._flexGrow = 0
-		this._ignoreLayout = false
+		this._marginTop = 0
+		this._marginLeft = 0
+		this._paddingWidth = 0
+		this._paddingHeight = 0
 		this._volatile = false
 		this._parent = null
-		this._cachedTop = null
-		this._cachedLeft = null
-		this._cachedWidth = null
-		this._cachedHeight = null
+		this._cachedTop = 0
+		this._cachedLeft = 0
+		this._cachedWidth = 0
+		this._cachedHeight = 0
 		this._enabled = true
 		this._dirty = true
-		this._layoutReady = false
 		this._childrenMap = null
 		this.children = []
 		this.metadata = {}
@@ -150,48 +119,36 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		this.onBeforeLayoutResolveCallback = config.onBeforeLayoutResolve
 		this.onBeforeRedrawCallback = config.onBeforeRedraw
 		this.onAfterRedrawCallback = config.onAfterRedraw
-		this.onEnableCallback = config.onEnable
-		this.onDisableCallback = config.onDisable
-		this.onDetachCallback = config.onDetach
 		this.onAttachCallback = config.onAttach
 		if (config.enabled === false) {
 			this._enabled = false
 		}
 		if (config.top !== undefined) {
-			this.setTop(config.top)
+			this.top = config.top
 		}
 		if (config.left !== undefined) {
-			this.setLeft(config.left)
+			this.left = config.left
 		}
 		if (config.width !== undefined) {
-			this.setWidth(config.width)
+			this.width = config.width
 		}
 		if (config.height !== undefined) {
-			this.setHeight(config.height)
+			this.height = config.height
 		}
-		if (config.padding !== undefined) {
-			this.setPadding(config.padding)
+		if (config.marginLeft !== undefined) {
+			this._marginLeft = config.marginLeft
 		}
-		if (config.margin !== undefined) {
-			this.setMargin(config.margin)
+		if (config.marginTop !== undefined) {
+			this._marginTop = config.marginTop
 		}
-		if (config.flexMode !== undefined) {
-			this.flexMode = config.flexMode
+		if (config.paddingWidth !== undefined) {
+			this._paddingWidth = config.paddingWidth
 		}
-		if (config.flexHorizontalAlign !== undefined) {
-			this.flexHorizontalAlign = config.flexHorizontalAlign
-		}
-		if (config.flexVerticalAlign !== undefined) {
-			this.flexVerticalAlign = config.flexVerticalAlign
-		}
-		if (config.flexGrow !== undefined) {
-			this.flexGrow = config.flexGrow
-		}
-		if (config.ignoreLayout !== undefined) {
-			this.ignoreLayout = config.ignoreLayout
+		if (config.paddingHeight !== undefined) {
+			this._paddingHeight = config.paddingHeight
 		}
 		if (config.volatile !== undefined) {
-			this.volatile = config.volatile
+			this._volatile = config.volatile
 		}
 		if (config.scale !== undefined) {
 			this._scale = config.scale
@@ -251,18 +208,6 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		}
 	}
 
-	private detachRecursion() {
-		for (let i = 0; i < this.children.length; i += 1) {
-			this.children[i].detachRecursion()
-		}
-		if (this.onDetach) {
-			this.onDetach()
-		}
-		if (this.onDetachCallback) {
-			this.onDetachCallback(this as any)
-		}
-	}
-
 	private removeElement(element: BASE): boolean
 	private removeElement(index: number): boolean
 	private removeElement(arg: BASE | number) {
@@ -272,137 +217,10 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 			this.nameRemoveRecursion(element)
 			this.onRemoveElement(index)
 			this.children.splice(index, 1)
-			this.setDirty()
-			element.detachRecursion()
+			this._dirty = true
 			return true
 		}
 		return false
-	}
-
-	private onEnableStateChange(value: boolean) {
-		if (value) {
-			if (this.onEnableCallback) {
-				this.onEnableCallback(this as any)
-			}
-		} else {
-			if (this.onDisableCallback) {
-				this.onDisableCallback(this as any)
-			}
-		}
-		this.children.forEach(x => x.onEnableStateChange(value))
-	}
-
-	private get childrenHeight() {
-		const children = this.children
-		let value = 0
-		for (let i = 0; i < children.length; i += 1) {
-			const element = children[i]
-			value += (element._ignoreLayout || !element._enabled) ? 0 : element.outerHeight
-		}
-		return value
-	}
-
-	private get childrenMaxHeight() {
-		const children = this.children
-		let value = 0
-		for (let i = 0; i < children.length; i += 1) {
-			const element = children[i]
-			value = Math.max(value, (element._ignoreLayout || !element._enabled) ? 0 : element.outerHeight)
-		}
-		return value
-	}
-
-	private get childrenWidth() {
-		const children = this.children
-		let value = 0
-		for (let i = 0; i < children.length; i += 1) {
-			const element = children[i]
-			value += (element._ignoreLayout || !element._enabled) ? 0 : element.outerWidth
-		}
-		return value
-	}
-
-	private get childrenMaxWidth(): number {
-		const children = this.children
-		let value = 0
-		for (let i = 0; i < children.length; i += 1) {
-			const element = children[i]
-			value = Math.max(value, (element._ignoreLayout || !element._enabled) ? 0 : element.outerWidth)
-		}
-		return value
-	}
-
-	protected resolveLayout() {
-		if (this._layoutReady || this._flexMode == "none") {
-			this._layoutReady = true
-			return // nothing to do
-		}
-		let growCount = this.children.reduce((value, element) => value + (element._enabled ? element._flexGrow : 0), 0)
-		if (this._flexMode == "horizontal") {
-			const width = this.innerWidth
-			let growPool = width - this.childrenWidth
-			let xOffset = 0
-			if (!growCount && (this._flexHorizontalAlign != "left")) {
-				xOffset += this._flexHorizontalAlign == "center" ? growPool / 2 : growPool
-			}
-			const growFactor = growCount ? growPool / growCount : 0
-			for (const element of this.children) {
-				if (!element._enabled || element._ignoreLayout) {
-					continue
-				}
-				if (element._flexGrow) {
-					const amount = growCount > 1 ? Math.floor(growFactor * element._flexGrow) : growPool
-					growCount -= 1
-					growPool -= amount
-					element._cachedWidth = element.width + amount
-					element._cachedHeight = null
-				}
-				element._cachedTop = element.top
-				element._cachedLeft = xOffset + element.left
-				element._dirty = true
-				xOffset += element.outerWidth
-			}
-			this._layoutReady = true
-			const height = this.innerHeight
-			for (const element of this.children) {
-				if (this._enabled && !element._ignoreLayout && (this._flexVerticalAlign != "top")) {
-					const diff = height - element.outerHeight
-					element._cachedTop! += this._flexVerticalAlign == "middle" ? diff / 2 : diff
-				}
-			}
-		} else {
-			const height = this.innerHeight
-			let growPool = height - this.childrenHeight
-			let yOffset = 0
-			if (!growCount && (this._flexVerticalAlign != "top")) {
-				yOffset += this._flexVerticalAlign == "middle" ? growPool / 2 : growPool
-			}
-			const growFactor = growCount ? growPool / growCount : 0
-			for (const element of this.children) {
-				if (!element._enabled || element._ignoreLayout) {
-					continue
-				}
-				if (element._flexGrow) {
-					const amount = growCount > 1 ? Math.floor(growFactor * element._flexGrow) : growPool
-					growCount -= 1
-					growPool -= amount
-					element._cachedHeight = element.height + amount
-					element._cachedWidth = null
-				}
-				element._cachedLeft = element.left
-				element._cachedTop = yOffset + element.top
-				element._dirty = true
-				yOffset += element.outerHeight
-			}
-			this._layoutReady = true
-			const width = this.innerWidth
-			for (const element of this.children) {
-				if (this._enabled && !element._ignoreLayout && (this._flexHorizontalAlign != "left")) {
-					const diff = width - element.outerWidth
-					element._cachedLeft! += this._flexHorizontalAlign == "center" ? diff / 2 : diff
-				}
-			}
-		}
 	}
 
 	protected onRemoveElement(_index: number) {
@@ -417,34 +235,78 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		// no-op by default
 	}
 
-	protected onDetach?(): void
 	protected onAttach?(): void
-	protected onEnable?(): void
-	protected onDisable?(): void
 
 	public update() {
 		if (this._enabled) {
 			if (this.onUpdateCallback) {
-				this.onUpdateCallback(this as any)
+				this.onUpdateCallback(this)
 			}
 			if (this._dirty) {
 				if (this.onBeforeLayoutResolveCallback) {
-					this.onBeforeLayoutResolveCallback(this as any)
+					this.onBeforeLayoutResolveCallback(this)
 				}
 				this.resolveLayout()
-				this.children.forEach(element => element.update())
+				const children = this.children
+				for (let i = 0; i < children.length; i += 1) {
+					if (this._volatile) {
+						children[i]._dirty = true
+					}
+					children[i].update()
+				}
 				this._dirty = false
 				if (this.onBeforeRedrawCallback) {
-					this.onBeforeRedrawCallback(this as any)
+					this.onBeforeRedrawCallback(this)
 				}
 				this.onUpdate()
 				if (this.onAfterRedrawCallback) {
-					this.onAfterRedrawCallback(this as any)
+					this.onAfterRedrawCallback(this)
 				}
 			} else {
-				this.children.forEach(element => element.update())
+				const children = this.children
+				for (let i = 0; i < children.length; i += 1) {
+					children[i].update()
+				}
 			}
 		}
+	}
+
+	public resolveLayout() {
+		let width = typeof this._width == "function" ? this._width(this) : this._width
+		if (width === null) {
+			width = this.contentWidth
+		}
+		if (this._xFill) {
+			width += this._parent!._cachedWidth * this._xFill
+		}
+		this._cachedWidth = width + this.paddingWidth
+
+		let height = typeof this._height == "function" ? this._height(this) : this._height
+		if (height === null) {
+			height = this.contentHeight
+		}
+		if (this._yFill) {
+			height += this._parent!._cachedHeight * this._yFill
+		}
+		this._cachedHeight = height + this.paddingHeight
+
+		let left = typeof this._left == "function" ? this._left(this) : this._left
+		if (this._xOrigin) {
+			left += this._xOrigin * this._parent!._cachedWidth
+		}
+		if (this._xAnchor) {
+			left -= this._xAnchor * this._scale * this._cachedWidth
+		}
+		this._cachedLeft = left + this._marginLeft
+
+		let top = typeof this._top == "function" ? this._top(this) : this._top
+		if (this._yOrigin) {
+			top += this._yOrigin * this._parent!._cachedHeight
+		}
+		if (this._yAnchor) {
+			top -= this._yAnchor * this._scale * this._cachedHeight
+		}
+		this._cachedTop = top + this._marginTop
 	}
 
 	public replaceElement(element: CONFIG, old: BASE | string): BASE
@@ -492,7 +354,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		if (element.name && (element.name[0] != "@")) {
 			this.nameAdd(element)
 		}
-		this.setDirty()
+		this._dirty = true
 		return element
 	}
 
@@ -513,7 +375,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	}
 
 	public delete() {
-		this._parent?.removeElement(this as any)
+		this._parent?.removeElement(this)
 		this._parent = null
 	}
 
@@ -524,20 +386,16 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	}
 
 	public purgeMetadata() {
-		Object.keys(this.metadata).forEach(x => delete this.metadata[x])
+		const metadata = this.metadata
+		for (const key in metadata) {
+			delete metadata[key]
+		}
 	}
 
 	public forEach(callback: (element: BASE) => void) {
 		callback(this as any)
 		for (let i = 0; i < this.children.length; i += 1) {
 			this.children[i].forEach(callback)
-		}
-	}
-
-	public onScaleChange(parentScale: number) {
-		this._parentScale = parentScale
-		for (let i = 0; i < this.children.length; i += 1) {
-			this.children[i].onScaleChange(parentScale * this._scale)
 		}
 	}
 
@@ -557,12 +415,12 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	}
 
 	public getElement<L extends BASE>(name: string, noThrow?: false): L
-	public getElement<L extends BASE>(name: string, noThrow: true): L | null
+	public getElement<L extends BASE>(name: string, noThrow: boolean): L | null
 	public getElement<L extends BASE>(name: string, noThrow = false): L | null {
 		if (!name) {
 			return this as any
 		} else if (!this._childrenMap) {
-			return this.parent.getElement<L>(name, noThrow as false)
+			return this.parent.getElement<L>(name, noThrow)
 		}
 		const path = name.split(".")
 		let current = this as LayoutElement
@@ -607,22 +465,9 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		}
 	}
 
-	public getElementPath() {
-		const list = [this as LayoutElement]
-		let parent = this._parent
-		while (parent) {
-			list.push(parent)
-			parent = parent._parent
-		}
-		return list.reverse()
-	}
-
 	public getRoot(): BASE {
 		let element = this as LayoutElement
 		while (true) {
-			if (element.type == "root") {
-				return element as BASE
-			}
 			const parent = element._parent
 			if (!parent) {
 				return element as BASE
@@ -631,97 +476,19 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		}
 	}
 
-	public setDirty(force?: boolean) {
-		if (!this._dirty || force) {
-			this._cachedTop = null
-			this._cachedLeft = null
-			this._cachedWidth = null
-			this._cachedHeight = null
-			this._dirty = true
-			this._layoutReady = false
-			if (this._flexMode != "none" || this._volatile) {
-				for (let i = 0; i < this.children.length; i += 1) {
-					this.children[i].setDirty(force)
-				}
-			}
-			if (this.parentLayout != "none") {
-				this._parent!.setDirty()
-			}
-			return true
-		}
-		return false
-	}
-
-	public setMargin(value: PositioningBox | number) {
-		this._margin = LayoutElement.resolvePositioningBox(value)
-		this.setDirty()
-	}
-
-	public setPadding(value: PositioningBox | number) {
-		this._padding = LayoutElement.resolvePositioningBox(value)
-		this.setDirty()
-	}
-
-	public setTop(value: number | (<T extends this>(element: T) => number)) {
-		if (this._top != value) {
-			this._top = value
-		}
-		this.setDirty(this._cachedTop !== null)
-	}
-
-	public setLeft(value: number | (<T extends this>(element: T) => number)) {
-		if (value != this._left) {
-			this._left = value
-		}
-		this.setDirty(this._cachedLeft !== null)
-	}
-
-	public setWidth(value: number | (<T extends this>(element: T) => number | null) | null | string) {
-		if (this._width !== value) {
-			if (typeof value == "string") {
-				const match = value.match(/^(\d+)%$/)
-				if (!match) {
-					throw new Error(`unknown width format: ${value}`)
-				}
-				const amount = (parseInt(match[1], 10) / 100)
-				this._height = element => element._parent!.computedWidth * amount
-			} else {
-				this._width = value
-			}
-			this.setDirty(this._cachedWidth !== null)
-		}
-	}
-
-	public setHeight(value: number | (<T extends this>(element: T) => number | null) | null | string) {
-		if (this._height !== value) {
-			if (typeof value == "string") {
-				const match = value.match(/^(\d+)%$/)
-				if (!match) {
-					throw new Error(`unknown height format: ${value}`)
-				}
-				const amount = (parseInt(match[1], 10) / 100)
-				this._height = element => element._parent!.computedHeight * amount
-			} else {
-				this._height = value
-			}
-			this.setDirty(this._cachedHeight !== null)
-		}
+	public setDirty() {
+		this._dirty = true
 	}
 
 	public setAnchor(x: number, y?: number) {
-		const yValue = y === undefined ? x : y
-		if (this._xAnchor != x || this._yAnchor != yValue) {
-			this._xAnchor = x
-			this._yAnchor = yValue
-			this.setDirty()
-		}
+		this.xAnchor = x
+		this.yAnchor = y === undefined ? x : y
 	}
 
 	public setOrigin(x: number, y?: number) {
 		this.xOrigin = x
 		this.yOrigin = y === undefined ? x : y
 	}
-
 
 	public setFill(x: number, y?: number) {
 		this.xFill = x
@@ -740,23 +507,27 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		return this.config.name
 	}
 
+	public get parent() {
+		return this._parent || this as LayoutElement as BASE
+	}
+
 	public get hasParent() {
 		return this._parent != null
 	}
 
-	public get parent() {
-		if (!this._parent) {
-			throw new Error("layout parent is null!")
+	public get parentIndex() {
+		return this._parent ? this._parent.children.indexOf(this) : -1
+	}
+
+	public get enabled() {
+		return this._enabled
+	}
+
+	public set enabled(value: boolean) {
+		if (this._enabled != value) {
+			this._enabled = value
+			this._dirty = true
 		}
-		return this._parent
-	}
-
-	public get contentWidth() {
-		return 0
-	}
-
-	public get contentHeight() {
-		return 0
 	}
 
 	public get treeEnabled() {
@@ -773,112 +544,6 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		return true
 	}
 
-	public get margin(): Readonly<ResolvedPositioningBox> {
-		return this._margin
-	}
-
-	public set margin(value: Readonly<ResolvedPositioningBox>) {
-		Object.assign(this._margin, value)
-		this.setDirty()
-	}
-
-	public get marginTop() {
-		return this._margin.top
-	}
-
-	public set marginTop(value: number) {
-		if (this._margin.top != value) {
-			this._margin.top = value
-			this.setDirty()
-		}
-	}
-
-	public get marginBottom() {
-		return this._margin.bottom
-	}
-
-	public set marginBottom(value: number) {
-		if (this._margin.bottom != value) {
-			this._margin.bottom = value
-			this.setDirty()
-		}
-	}
-
-	public get marginLeft() {
-		return this._margin.left
-	}
-
-	public set marginLeft(value: number) {
-		if (this._margin.left != value) {
-			this._margin.left = value
-			this.setDirty()
-		}
-	}
-
-	public get marginRight() {
-		return this._margin.right
-	}
-
-	public set marginRight(value: number) {
-		if (this._margin.right != value) {
-			this._margin.right = value
-			this.setDirty()
-		}
-	}
-
-	public get padding(): Readonly<ResolvedPositioningBox> {
-		return this._padding
-	}
-
-	public set padding(value: Readonly<ResolvedPositioningBox>) {
-		Object.assign(this._padding, value)
-		this.setDirty()
-	}
-
-	public get paddingTop() {
-		return this._padding.top
-	}
-
-	public set paddingTop(value: number) {
-		if (this._padding.top != value) {
-			this._padding.top = value
-			this.setDirty()
-		}
-	}
-
-	public get paddingBottom() {
-		return this._padding.bottom
-	}
-
-	public set paddingBottom(value: number) {
-		if (this._padding.bottom != value) {
-			this._padding.bottom = value
-			this.setDirty()
-		}
-	}
-
-	public get paddingLeft() {
-		return this._padding.left
-	}
-
-	public set paddingLeft(value: number) {
-		if (this._padding.left != value) {
-			this._padding.left = value
-			this.setDirty()
-		}
-	}
-
-	public get paddingRight() {
-		return this._padding.right
-	}
-
-	public set paddingRight(value: number) {
-		if (this._padding.right != value) {
-			this._padding.right = value
-			this.setDirty()
-		}
-	}
-
 	public get volatile() {
 		return this._volatile
 	}
@@ -886,266 +551,149 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set volatile(value: boolean) {
 		if (this._volatile != value) {
 			this._volatile = value
-			if (value) {
-				this.setDirty()
-			}
+			this._dirty = true
 		}
 	}
 
-	public get ignoreLayout() {
-		return this._ignoreLayout
-	}
-
-	public set ignoreLayout(value: boolean) {
-		if (this._ignoreLayout != value) {
-			this._ignoreLayout = value
-			this.setDirty()
+	public set scale(value: number) {
+		if (this._scale != value) {
+			this._scale = value
+			this._dirty = true
 		}
 	}
 
-	public get flexMode() {
-		return this._flexMode
+	public get scale() {
+		return this._scale
 	}
 
-	public set flexMode(value: "none" | "horizontal" | "vertical") {
-		if (this._flexMode != value) {
-			this._flexMode = value
-			this.setDirty()
+	public get globalScale() {
+		let scale = this.scale
+		let element = this._parent
+		while (element) {
+			scale *= element.scale
+			element = element._parent
 		}
+		return scale
 	}
 
-	public get flexHorizontalAlign() {
-		return this._flexHorizontalAlign
+	public get contentWidth() {
+		return 0
 	}
 
-	public set flexHorizontalAlign(value: "left" | "right" | "center") {
-		if (this._flexHorizontalAlign != value) {
-			this._flexHorizontalAlign = value
-			this.setDirty()
-		}
-	}
-
-	public get flexVerticalAlign() {
-		return this._flexVerticalAlign
-	}
-
-	public set flexVerticalAlign(value: "top" | "bottom" | "middle") {
-		if (this._flexVerticalAlign != value) {
-			this._flexVerticalAlign = value
-			this.setDirty()
-		}
-	}
-
-	public get flexGrow() {
-		return this._flexGrow
-	}
-
-	public set flexGrow(value: number) {
-		if (this._flexGrow != value) {
-			this._flexGrow = value
-			this.setDirty()
-		}
-	}
-
-	public get enabled() {
-		return this._enabled
-	}
-
-	public set enabled(value: boolean) {
-		if (this._enabled != value) {
-			this._enabled = value
-			this.onEnableStateChange(value)
-			if (value) {
-				this.setDirty()
-				if (this.onEnable) {
-					this.onEnable()
-				}
-			} else {
-				if (this.onDisable) {
-					this.onDisable()
-				}
-			}
-		}
-	}
-
-	public get parentLayout() {
-		return this._parent ? this._parent._flexMode : "none"
-	}
-
-	public get top(): number {
-		return typeof this._top == "number" ? this._top : 0
-	}
-
-	public set top(value: number) {
-		if (this._top != value) {
-			this._top = value
-		}
-		this.setDirty(this._cachedTop !== null)
-	}
-
-	public get computedTop() {
-		if (this._cachedTop !== null) {
-			return this._cachedTop
-		}
-		let value = typeof this._top == "function" ? this._top(this as any) : this._top
-		if (this._yOrigin) {
-			value += this._yOrigin * this._parent!.computedHeight
-		}
-		if (this._yAnchor) {
-			value -= this._yAnchor * this._scale * this.computedHeight
-		}
-		this._cachedTop = value
-		return value
+	public get contentHeight() {
+		return 0
 	}
 
 	public get left(): number {
 		return typeof this._left == "number" ? this._left : 0
 	}
 
-	public set left(value: number) {
+	public set left(value: number | (<T extends this>(element: T) => number)) {
 		if (value != this._left) {
 			this._left = value
 		}
-		this.setDirty(this._cachedLeft !== null)
+		this._dirty = true
 	}
 
-	public get computedLeft() {
-		if (this._cachedLeft !== null) {
-			return this._cachedLeft
-		}
-		let value = typeof this._left == "function" ? this._left(this as any) : this._left
-		if (this._xOrigin) {
-			value += this._xOrigin * this._parent!.computedWidth
-		}
-		if (this._xAnchor) {
-			value -= this._xAnchor * this._scale * this.computedWidth
-		}
-		this._cachedLeft = value
-		return value
+	public get top(): number {
+		return typeof this._top == "number" ? this._top : 0
 	}
 
-	public get innerTop() {
-		return this.computedTop + this._margin.top + this._padding.top
-	}
-
-	public get innerLeft() {
-		return this.computedLeft + this._margin.left + this._padding.left
+	public set top(value: number | (<T extends this>(element: T) => number)) {
+		if (this._top != value) {
+			this._top = value
+		}
+		this._dirty = true
 	}
 
 	public get width(): number {
 		return typeof this._width == "number" ? this._width : 0
 	}
 
-	public set width(value: number) {
+	public set width(value: number | null | (<T extends this>(element: T) => number | null)) {
 		if (this._width !== value) {
 			this._width = value
-			this.setDirty(this._cachedWidth !== null)
+			this._dirty = true
 		}
-	}
-
-	public get computedWidth() {
-		if (this._cachedWidth === null) {
-			let value
-			if (typeof this._width == "function") {
-				value = this._width(this as any)
-			} else if (this._width) {
-				value = this._width
-			} else if (this._width === 0) {
-				value = 0
-			} else {
-				if (this._flexMode == "none") {
-					if ((this._flexGrow > 0) && (this.parentLayout == "horizontal")) {
-						value = 0
-					} else {
-						value = this.contentWidth
-					}
-				} else if (this._flexMode == "horizontal") {
-					value = this.childrenWidth + this._padding.left + this._padding.right
-				} else {
-					this.resolveLayout()
-					value = this.childrenMaxWidth
-				}
-			}
-			if (this._xFill && value !== null) {
-				value += this._parent!.computedWidth * this._xFill
-			}
-			this._cachedWidth = value
-			return value || 0
-		} else {
-			return this._cachedWidth
-		}
-	}
-
-	public get outerWidth() {
-		return this.computedWidth + this._margin.left + this._margin.right
-	}
-
-	public get innerWidth() {
-		return this.computedWidth - this._padding.left - this._padding.right
 	}
 
 	public get height(): number {
 		return typeof this._height == "number" ? this._height : 0
 	}
 
-	public set height(value: number) {
+	public set height(value: number | null | (<T extends this>(element: T) => number | null)) {
 		if (this._height !== value) {
 			this._height = value
-			this.setDirty(this._cachedHeight !== null)
+			this._dirty = true
 		}
+	}
+
+	public get hasWidth() {
+		return this._width !== null
+	}
+
+	public get hasHeight() {
+		return this._height !== null
+	}
+
+	public get computedLeft() {
+		return this._cachedLeft
+	}
+
+	public get computedTop() {
+		return this._cachedTop
 	}
 
 	public get computedHeight(): number {
-		if (this._cachedHeight === null) {
-			let value
-			if (typeof this._height == "function") {
-				value = this._height(this as any)
-			} else if (this._height) {
-				value = this._height
-			} else if (this._height === 0) {
-				value = 0
-			} else {
-				if (this._flexMode == "none") {
-					if ((this._flexGrow > 0) && (this.parentLayout == "vertical")) {
-						value = 0
-					} else {
-						value = this.contentHeight
-					}
-				} else if (this._flexMode == "horizontal") {
-					this.resolveLayout()
-					value = this.childrenMaxHeight
-				} else {
-					value = this.childrenHeight + this._padding.top + this._padding.bottom
-				}
-			}
-			if (this._yFill && value !== null) {
-				value += this._parent!.computedHeight * this._yFill
-			}
-			this._cachedHeight = value
-			return value || 0
-		} else {
-			return this._cachedHeight
+		return this._cachedHeight
+	}
+
+	public get computedWidth() {
+		return this._cachedWidth
+	}
+
+	public get marginLeft() {
+		return this._marginLeft
+	}
+
+	public set marginLeft(value: number) {
+		if (this._marginLeft != value) {
+			this._marginLeft = value
+			this._dirty = true
 		}
 	}
 
-	public get outerHeight() {
-		return this.computedHeight + this._margin.top + this._margin.bottom
+	public get marginTop() {
+		return this._marginTop
 	}
 
-	public get innerHeight() {
-		return this.computedHeight - this._padding.top - this._padding.bottom
-	}
-
-	public set scale(value: number) {
-		if (this._scale != value) {
-			this._scale = value
-			this.onScaleChange(this._parentScale)
-			this.setDirty()
+	public set marginTop(value: number) {
+		if (this._marginTop != value) {
+			this._marginTop = value
+			this._dirty = true
 		}
 	}
 
-	public get scale() {
-		return this._scale
+	public get paddingWidth() {
+		return this._paddingWidth
+	}
+
+	public set paddingWidth(value: number) {
+		if (this._paddingWidth != value) {
+			this._paddingWidth = value
+			this._dirty = true
+		}
+	}
+
+	public get paddingHeight() {
+		return this._paddingHeight
+	}
+
+	public set paddingHeight(value: number) {
+		if (this._paddingHeight != value) {
+			this._paddingHeight = value
+			this._dirty = true
+		}
 	}
 
 	public get xAnchor() {
@@ -1155,7 +703,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xAnchor(value: number) {
 		if (this._xAnchor != value) {
 			this._xAnchor = value
-			this.setDirty()
+			this._dirty = true
 		}
 	}
 
@@ -1166,24 +714,8 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yAnchor(value: number) {
 		if (this._yAnchor != value) {
 			this._yAnchor = value
-			this.setDirty()
+			this._dirty = true
 		}
-	}
-
-	public get anchor() {
-		return [this._xAnchor, this.yAnchor] as Readonly<[number, number]>
-	}
-
-	public set anchor(value: Readonly<[number, number]>) {
-		if (this._xAnchor != value[0] || this._yAnchor != value[1]) {
-			this._xAnchor = value[0]
-			this._yAnchor = value[1]
-			this.setDirty()
-		}
-	}
-
-	public get globalScale() {
-		return this._scale * this._parentScale
 	}
 
 	public get xOrigin() {
@@ -1193,7 +725,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xOrigin(value: number) {
 		if (this._xOrigin != value) {
 			this._xOrigin = value
-			this.setDirty()
+			this._dirty = true
 		}
 	}
 
@@ -1204,7 +736,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yOrigin(value: number) {
 		if (this._yOrigin != value) {
 			this._yOrigin = value
-			this.setDirty()
+			this._dirty = true
 		}
 	}
 
@@ -1215,7 +747,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xFill(value: number) {
 		if (this._xFill != value) {
 			this._xFill = value
-			this.setDirty()
+			this._dirty = true
 		}
 	}
 
@@ -1226,41 +758,41 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yFill(value: number) {
 		if (this._yFill != value) {
 			this._yFill = value
-			this.setDirty()
+			this._dirty = true
 		}
 	}
 
 	public get globalBoundingBox() {
 		const result = {
-			top: this.innerTop,
-			left: this.innerLeft,
+			top: this._cachedTop,
+			left: this._cachedLeft,
 			width: 0,
 			height: 0
 		}
-		if (this._width == null && this.flexMode == "none") {
+		if (this._width == null) {
 			const bounds = this.horizontalBounds
 			result.left -= result.left - bounds[0]
 			result.width = bounds[1] - bounds[0]
 		} else {
-			result.width = this.innerWidth * this._scale
+			result.width = this._cachedWidth * this._scale
 		}
-		if (this._height == null && this.flexMode == "none") {
+		if (this._height == null) {
 			const bounds = this.verticalBounds
 			result.top -= result.top - bounds[0]
 			result.height = bounds[1] - bounds[0]
 		} else {
-			result.height = this.innerHeight * this._scale
+			result.height = this._cachedHeight * this._scale
 		}
 		let parent = this._parent
 		while (parent) {
 			if (parent._scale) {
-				result.top = (result.top * parent._scale) + parent.innerTop
-				result.left = (result.left * parent._scale) + parent.innerLeft
+				result.top = (result.top * parent._scale) + parent._cachedTop
+				result.left = (result.left * parent._scale) + parent._cachedLeft
 				result.width *= parent._scale
 				result.height *= parent._scale
 			} else {
-				result.top += parent.innerTop
-				result.left += parent.innerLeft
+				result.top += parent._cachedTop
+				result.left += parent._cachedLeft
 			}
 			parent = parent._parent
 		}
@@ -1268,8 +800,8 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	}
 
 	public get horizontalBounds() {
-		const width = this.computedWidth * this.scale
-		const offset = this.innerLeft
+		const width = this._cachedWidth * this._scale
+		const offset = this._cachedLeft
 		if (width || this._width === 0) {
 			return [offset, offset + width]
 		}
@@ -1282,14 +814,14 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 				max = Math.max(max, bounds[1])
 			}
 		}
-		min *= this.scale
-		max *= this.scale
+		min *= this._scale
+		max *= this._scale
 		return isFinite(min + max) ? [offset + min, offset + max] : [offset, offset]
 	}
 
 	public get verticalBounds() {
-		const height = this.computedHeight * this.scale
-		const offset = this.innerTop
+		const height = this._cachedHeight * this._scale
+		const offset = this._cachedTop
 		if (height || this._height === 0) {
 			return [offset, offset + height]
 		}
@@ -1302,37 +834,9 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 				max = Math.max(max, bounds[1])
 			}
 		}
-		min *= this.scale
-		max *= this.scale
+		min *= this._scale
+		max *= this._scale
 		return isFinite(min + max) ? [offset + min, offset + max] : [offset, offset]
-	}
-
-	public get layoutReady() {
-		return this._layoutReady
-	}
-
-	public get widthReady() {
-		return (this._cachedWidth !== null) || (this._width !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "horizontal"))
-	}
-
-	public get heightReady() {
-		return (this._cachedHeight !== null) || (this._height !== null && (this.ignoreLayout || !this._parent || this.parent.flexMode != "vertical"))
-	}
-
-	public get hasWidth() {
-		return this._width !== null
-	}
-
-	public get hasHeight() {
-		return this._height !== null
-	}
-
-	public get isLayoutElement() {
-		return !(this.ignoreLayout || !this._parent || this.parent.flexMode == "none")
-	}
-
-	public get parentIndex() {
-		return this._parent ? this._parent.children.indexOf(this as any) : -1
 	}
 }
 
