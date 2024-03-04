@@ -1,0 +1,29 @@
+{
+	"excludeInternal": true,
+	"excludePrivate": true,
+	"excludeExternals": true,
+	"out": "docs",
+	"entryPoints": ["src/LayoutBase.ts"],
+	"sort": [
+		"static-first",
+		"kind",
+		"source-order"
+	],
+	"validation": {
+		"notExported": true,
+		"invalidLink": true,
+		"notDocumented": true
+	},
+	"requiredToBeDocumented": [
+		"Enum",
+		"EnumMember",
+		"Variable",
+		"Function",
+		"Class",
+		"Interface",
+		"Property",
+		"Method",
+		"GetSignature",
+		"TypeAlias"
+	]
+}
