@@ -400,10 +400,10 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * * {@link computedTop}
 	 * * {@link computedWidth}
 	 * * {@link computedHeight}
-	 * 
+	 *
 	 * @remarks this function assumes parent is not dirty, if you are unsure if parent is dirty
 	 * use {@link updateComputedRecursive} instead.
-	 * 
+	 *
 	 * @returns `true` if {@link computedWidth} or {@link computedHeight} value has changed
 	 */
 	public updateComputed() {
@@ -503,7 +503,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 			}
 		}
 	}
-	
+
 	public insertElement<T extends BASE>(element: T, before?: BASE | string | number): T
 	public insertElement<T extends BASE>(element: CONFIG, before?: BASE | string | number): T
 	/**
@@ -512,7 +512,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * * the child can be either an existing element or an config object that will be used to create a new element
 	 * * the child will be removed from it's current parent if any
 	 * * to add **after** a specific element `insertElement(x, y.parentIndex + 1)` can be used
-	 * 
+	 *
 	 * @throws when before is specified and target insertion point was not found / invalid
 	 *
 	 * @param element - existing element or a configuration object describing an object to create
@@ -536,7 +536,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		}
 		element._parent?.removeElement(element)
 		element._parent = this as any
-		const index = before ? this.getInsertionIndex(element) : this.children.length
+		const index = before !== undefined ? this.getInsertionIndex(before) : this.children.length
 		if (index < 0) {
 			throw new Error("insert target not found")
 		}
@@ -566,7 +566,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * * the children will be added (in order) at the end or at a specific position if `before` is specified
 	 * * the children can be either an existing elements or configs object that will be used to create a new elements
 	 * * the children will be removed from their current parents, if any
-	 * 
+	 *
 	 * @throws when before is specified and target insertion point was not found / invalid
 	 *
 	 * @param elements - array of existing element or configurations object describing objects to create
@@ -659,7 +659,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 
 	/**
 	 * returns `true` if the given path resolves to an element under current element
-	 * 
+	 *
 	 * equivalent to doing
 	 * ```
 	 * this.getElement(path, true) != null
@@ -708,7 +708,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * * empty string (`""`) will always resolve to `this`
 	 * @param noThrow - by default an exception is thrown when element is not found, when set to true null is returned instead
 	 * @typeParam T - can be used to specify the type of the element that will be returned, by default the layout base type is used
-	 * 
+	 *
 	 * @returns the resolved element, if not found will throw exception or return `null` if `noThrow` is set
 	 */
 	public getElement<T extends BASE>(path: string, noThrow = false): T | null {
@@ -716,7 +716,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 			// return this on empty string
 			return this as LayoutElement as T
 		}
-		
+
 		if (this._childrenMap) {
 			// assume path is simply a name, this is an optimization to no execute the full function
 			// in trivial cases
@@ -736,7 +736,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 
 		const items = path.split(".")
 		let current = this as LayoutElement
-		
+
 		for (let i = 0; i < items.length; i += 1) {
 			const item = items[i]
 			const child = current._childrenMap?.get(item)
@@ -763,7 +763,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 
 	/**
 	 * return the elements absolute path
-	 * 
+	 *
 	 * @param root - when passed a relative path to the specified parent element will be returned
 	 */
 	public getPath(root?: BASE) {
@@ -824,7 +824,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 
 	/**
 	 * `true` if this layer has a parent
-	 * 
+	 *
 	 * same value can be obtained by doing
 	 * ```
 	 * this.parent !== this
@@ -908,7 +908,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		this._dirty = true
 	}
 
-	
+
 	/**
 	 * x offset added to final position value
 	 */
@@ -1035,7 +1035,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * ```
 	 * // if left is numeric
 	 * left + xOrigin * parent.computedWidth + marginLeft - xAnchor * scale * cachedWidth
-	 * 
+	 *
 	 * // if left is function
 	 * left(this) + xOrigin * parent.computedWidth + marginLeft - xAnchor * scale * cachedWidth
 	 * ```
@@ -1052,7 +1052,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * ```
 	 * // if top is numeric
 	 * top + yOrigin * parent.computedHeight + marginTop - yAnchor * scale * cachedHeight
-	 * 
+	 *
 	 * // if top is function
 	 * top(this) + yOrigin * parent.computedHeight + marginTop - yAnchor * scale * cachedHeight
 	 * ```
@@ -1069,10 +1069,10 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * ```
 	 * // if width is numeric
 	 * width + xFill * parent.computedWidth + paddingWidth
-	 * 
+	 *
 	 * // if width is function
 	 * width(this) + xFill * parent.computedWidth + paddingWidth
-	 * 
+	 *
 	 * // if width is null
 	 * computedWidth + xFill * parent.computedWidth + paddingWidth
 	 * ```
@@ -1089,10 +1089,10 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * ```
 	 * // if height is numeric
 	 * height + yFill * parent.computedHeight+ paddingHeight
-	 * 
+	 *
 	 * // if height is function
 	 * height(this) + yFill * parent.computedHeight+ paddingHeight
-	 * 
+	 *
 	 * // if height is null
 	 * computedHeight + yFill * parent.computedHeight+ paddingHeight
 	 * ```
@@ -1183,7 +1183,7 @@ export interface ElementClassInterface {
 	/**
 	 * This method should register the element class on the factory instance passed in argument using
 	 * this {@link LayoutFactory.register} method.
-	 * 
+	 *
 	 * @param layoutFactory - the factory that the element class should register on
 	 */
 	register(layoutFactory: LayoutFactory): void
@@ -1191,7 +1191,7 @@ export interface ElementClassInterface {
 
 /**
  * A factory function for an given element class.
- * 
+ *
  * @param config - the config object from which the element class should be crated
  *
  * @typeParam SELF - the type of the created instance
@@ -1221,7 +1221,7 @@ export class LayoutFactory<BASE extends LayoutElement = any, CONFIG extends Layo
 	/**
 	 * this function should be used only inside the static {@link ElementClassInterface.register | register} methods
 	 * defined on element classes
-	 * 
+	 *
 	 * @param type - the unique type name of the element class being registered on the factory
 	 * @param constructor - the factory function that will create an element class instance of that type based on config
 	 */
