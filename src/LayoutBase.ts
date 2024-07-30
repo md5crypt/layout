@@ -159,6 +159,12 @@ export interface LayoutElementConfig<CONFIG extends LayoutElementConfig = any, S
 	onCreated?(element: SELF): void
 }
 
+const enum DirtyFlags {
+	CLEAN = 0,
+	NEEDS_RENDER = 1,
+	DIMENSIONS_CHANGED = 2
+}
+
 /**
  * The abstract layout element class
  * @typeParam CONFIG - the interface to use as the base layout element config
@@ -199,7 +205,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	private _cachedTop: number
 	private _cachedLeft: number
 
-	protected _dirty: boolean
+	protected _dirty: DirtyFlags
 	protected _xAnchor: number
 	protected _yAnchor: number
 	protected _xOrigin: number
@@ -246,7 +252,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		this._cachedWidth = 0
 		this._cachedHeight = 0
 		this._enabled = true
-		this._dirty = true
+		this._dirty = DirtyFlags.NEEDS_RENDER
 		this._childrenMap = null
 		this._parentChildrenMap = null
 		this.children = []
@@ -343,7 +349,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 			element._parentChildrenMap = null
 			element._parent = null
 			this.children.splice(index, 1)
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 			return true
 		}
 		return false
@@ -404,10 +410,8 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	 * @remarks this function assumes parent is not dirty, if you are unsure if parent is dirty
 	 * use {@link updateComputedRecursive} instead.
 	 *
-	 * @returns `true` if {@link computedWidth} or {@link computedHeight} value has changed
 	 */
 	public updateComputed() {
-		let dimensionsChanged = false
 		let width = typeof this._width == "function" ? this._width(this) : this._width
 		if (width === null) {
 			width = this.contentWidth
@@ -418,7 +422,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		width += this.paddingWidth
 		if (this._cachedWidth != width) {
 			this._cachedWidth = width
-			dimensionsChanged = true
+			this._dirty |= DirtyFlags.DIMENSIONS_CHANGED
 		}
 
 		let height = typeof this._height == "function" ? this._height(this) : this._height
@@ -431,7 +435,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		height += this.paddingHeight
 		if (this._cachedHeight != height) {
 			this._cachedHeight = height
-			dimensionsChanged = true
+			this._dirty |= DirtyFlags.DIMENSIONS_CHANGED
 		}
 
 		let left = typeof this._left == "function" ? this._left(this) : this._left
@@ -451,7 +455,6 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 			top -= this._yAnchor * this._scale * this._cachedHeight
 		}
 		this._cachedTop = top + this._marginTop
-		return dimensionsChanged
 	}
 
 	/**
@@ -479,15 +482,16 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 				if (this.onBeforeLayoutResolveCallback) {
 					this.onBeforeLayoutResolveCallback(this)
 				}
-				const dimensionsChanged = this.updateComputed()
+				this.updateComputed()
 				const children = this.children
+				const forceUpdate = this._dirty & DirtyFlags.DIMENSIONS_CHANGED
 				for (let i = 0; i < children.length; i += 1) {
-					if (dimensionsChanged) {
-						children[i]._dirty = true
+					if (forceUpdate) {
+						children[i]._dirty |= DirtyFlags.NEEDS_RENDER
 					}
 					children[i].update()
 				}
-				this._dirty = false
+				this._dirty = DirtyFlags.CLEAN
 				if (this.onBeforeRedrawCallback) {
 					this.onBeforeRedrawCallback(this)
 				}
@@ -555,7 +559,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 				childrenMap.set(element.name, element as LayoutElement)
 			}
 		}
-		this._dirty = true
+		this._dirty |= DirtyFlags.NEEDS_RENDER
 		return element
 	}
 
@@ -799,7 +803,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 
 	/** mark the element as dirty, this will force updating the display object next layout update pass */
 	public setDirty() {
-		this._dirty = true
+		this._dirty |= DirtyFlags.NEEDS_RENDER
 	}
 
 	/** check if the element is marked as dirty (object update pending) */
@@ -850,7 +854,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set enabled(value: boolean) {
 		if (this._enabled != value) {
 			this._enabled = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -858,7 +862,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set scale(value: number) {
 		if (this._scale != value) {
 			this._scale = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -884,7 +888,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		if (value != this._left) {
 			this._left = value
 		}
-		this._dirty = true
+		this._dirty |= DirtyFlags.NEEDS_RENDER
 	}
 
 	/**
@@ -905,7 +909,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 		if (this._top != value) {
 			this._top = value
 		}
-		this._dirty = true
+		this._dirty |= DirtyFlags.NEEDS_RENDER
 	}
 
 
@@ -919,7 +923,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set marginLeft(value: number) {
 		if (this._marginLeft != value) {
 			this._marginLeft = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -933,7 +937,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set marginTop(value: number) {
 		if (this._marginTop != value) {
 			this._marginTop = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -955,7 +959,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set width(value: number | null | (<T extends this>(element: T) => number | null)) {
 		if (this._width !== value) {
 			this._width = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -977,7 +981,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set height(value: number | null | (<T extends this>(element: T) => number | null)) {
 		if (this._height !== value) {
 			this._height = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -991,7 +995,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set paddingWidth(value: number) {
 		if (this._paddingWidth != value) {
 			this._paddingWidth = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1005,7 +1009,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set paddingHeight(value: number) {
 		if (this._paddingHeight != value) {
 			this._paddingHeight = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1111,7 +1115,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xAnchor(value: number) {
 		if (this._xAnchor != value) {
 			this._xAnchor = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1123,7 +1127,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yAnchor(value: number) {
 		if (this._yAnchor != value) {
 			this._yAnchor = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1135,7 +1139,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xOrigin(value: number) {
 		if (this._xOrigin != value) {
 			this._xOrigin = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1147,7 +1151,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yOrigin(value: number) {
 		if (this._yOrigin != value) {
 			this._yOrigin = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1159,7 +1163,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set xFill(value: number) {
 		if (this._xFill != value) {
 			this._xFill = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 
@@ -1171,7 +1175,7 @@ export abstract class LayoutElement<CONFIG extends LayoutElementConfig = any, BA
 	public set yFill(value: number) {
 		if (this._yFill != value) {
 			this._yFill = value
-			this._dirty = true
+			this._dirty |= DirtyFlags.NEEDS_RENDER
 		}
 	}
 }

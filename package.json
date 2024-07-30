@@ -1,6 +1,6 @@
 {
 	"name": "@md5crypt/layout",
-	"version": "2.0.2",
+	"version": "2.0.3",
 	"description": "layout engine implementation",
 	"main": "lib/LayoutBase.js",
 	"types": "lib/LayoutBase.d.ts",
